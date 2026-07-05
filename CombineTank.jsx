@@ -44,6 +44,21 @@ export default function CombineTank() {
         return match ? match[1] : "";
     };
 
+    const handleReset = () => {
+        setStrappingFile(null);
+        setFractionFile(null);
+        setStrappingRaw(null);
+        setFractionRaw(null);
+        setTankName("");
+        setCombinedData([]);
+        setStrappingPreview([]);
+        setFractionPreview([]);
+        setUploadError("");
+        setTooltipInfo(null);
+        setProgress(0);
+        setProgressText("");
+    };
+
     const handleFiles = (files) => {
         let invalidFiles = [];
         let detectedStrap = "";
@@ -614,13 +629,27 @@ export default function CombineTank() {
                             </div>
                         )}
 
-                        <button 
-                            style={{ ...styles.btnProcess, ...(!(strappingRaw && fractionRaw) || isProcessing ? styles.btnDisabled : {}) }}
-                            disabled={!(strappingRaw && fractionRaw) || isProcessing}
-                            onClick={handleProcess}
-                        >
-                            {isProcessing ? 'Memproses...' : (combinedData.length > 0 ? 'Proses Ulang Data' : 'Proses & Gabungkan')}
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                            <button 
+                                style={{ 
+                                    ...styles.btnProcess, 
+                                    ...(!(strappingRaw && fractionRaw) || isProcessing ? styles.btnDisabled : {}),
+                                    flex: 2
+                                }}
+                                disabled={!(strappingRaw && fractionRaw) || isProcessing}
+                                onClick={handleProcess}
+                            >
+                                {isProcessing ? 'Memproses...' : (combinedData.length > 0 ? 'Proses Ulang' : 'Gabungkan Data')}
+                            </button>
+                            {(strappingFile || fractionFile) && (
+                                <button 
+                                    style={styles.btnReset}
+                                    onClick={handleReset}
+                                >
+                                    Reset
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     {/* Previews (only shown when combinedData exists) */}
@@ -987,6 +1016,19 @@ const styles = {
         fontSize: '0.85rem',
         marginTop: '0.5rem',
         pointerEvents: 'none',
+    },
+    btnReset: {
+        padding: '1rem',
+        background: 'rgba(239, 68, 68, 0.1)',
+        border: '1px solid rgba(239, 68, 68, 0.25)',
+        borderRadius: '8px',
+        color: '#f87171',
+        fontSize: '1rem',
+        fontWeight: '600',
+        cursor: 'pointer',
+        transition: 'all 0.3s ease',
+        flex: 1,
+        textAlign: 'center',
     },
     btnProcess: {
         width: '100%',

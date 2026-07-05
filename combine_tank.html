@@ -57,6 +57,23 @@
             color: white; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600;
             cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
         }
+        .btn-reset {
+            padding: 0.75rem;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            border-radius: 8px;
+            color: #f87171;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex: 1;
+            text-align: center;
+            display: none;
+        }
+        .btn-reset:hover {
+            background: rgba(239, 68, 68, 0.2);
+        }
         .btn-process:disabled { background: #475569; cursor: not-allowed; box-shadow: none; opacity: 0.7; }
 
         #results-area { display: none; }
@@ -254,7 +271,10 @@
                     <div class="progress-bar" id="progress-bar"></div>
                 </div>
 
-                <button id="btn-process" class="btn-process" disabled style="padding: 0.75rem;">Proses & Gabungkan</button>
+                <div style="display: flex; gap: 0.5rem; width: 100%;">
+                    <button id="btn-process" class="btn-process" disabled style="padding: 0.75rem; flex: 2;">Proses & Gabungkan</button>
+                    <button id="btn-reset" class="btn-reset">Reset</button>
+                </div>
             </div>
 
             <!-- Previews -->
@@ -411,6 +431,7 @@
                 statusName.textContent = file.name;
                 statusIcon.textContent = '✅';
                 statusItem.style.color = '#10b981';
+                document.getElementById('btn-reset').style.display = 'block';
 
                 const reader = new FileReader();
                 reader.onload = (ev) => { strappingRaw = ev.target.result; checkReady(); };
@@ -427,6 +448,7 @@
                 statusName.textContent = file.name;
                 statusIcon.textContent = '✅';
                 statusItem.style.color = '#10b981';
+                document.getElementById('btn-reset').style.display = 'block';
 
                 const reader = new FileReader();
                 reader.onload = (ev) => { fractionRaw = ev.target.result; checkReady(); };
@@ -453,7 +475,42 @@
         }
     }
 
+    function handleReset() {
+        strappingFile = null;
+        fractionFile = null;
+        strappingRaw = null;
+        fractionRaw = null;
+        tankName = "";
+        combinedData = [];
+        document.getElementById('name-strapping').textContent = 'Belum diunggah';
+        document.getElementById('icon-strapping').textContent = '⏳';
+        document.getElementById('status-strapping-item').style.color = 'var(--text-muted)';
+        
+        document.getElementById('name-fraction').textContent = 'Belum diunggah';
+        document.getElementById('icon-fraction').textContent = '⏳';
+        document.getElementById('status-fraction-item').style.color = 'var(--text-muted)';
+        
+        document.getElementById('upload-error-msg').style.display = 'none';
+        document.getElementById('upload-error-msg').textContent = '';
+        
+        document.getElementById('btn-reset').style.display = 'none';
+        document.getElementById('btn-process').disabled = true;
+        document.getElementById('btn-process').textContent = 'Proses & Gabungkan';
+        
+        document.getElementById('results-area').style.display = 'none';
+        document.getElementById('preview-area').style.display = 'none';
+        document.getElementById('welcome-area').style.display = 'block';
+
+        const badge = document.getElementById('tank-name-badge');
+        if (badge) badge.textContent = 'TIDAK TERDETEKSI';
+    }
+
+    document.getElementById('btn-reset').addEventListener('click', handleReset);
+
     function checkReady() { 
+        if (strappingFile || fractionFile) {
+            document.getElementById('btn-reset').style.display = 'block';
+        }
         if (strappingRaw && fractionRaw) {
             btnProcess.disabled = false; 
         }
