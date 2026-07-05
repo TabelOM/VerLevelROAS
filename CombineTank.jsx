@@ -172,10 +172,20 @@ export default function CombineTank() {
             await yieldToMain();
 
             const fractionLookup = {};
+            const cincinMap = new Map();
+            let cincinCounter = 1;
+
             fractionRules.forEach(r => {
+                const rangeKey = `${r.minCm}-${r.maxCm}`;
+                if (!cincinMap.has(rangeKey)) {
+                    cincinMap.set(rangeKey, cincinCounter++);
+                }
+                const cincinNumber = cincinMap.get(rangeKey);
+                
                 for (let cm = r.minCm; cm <= r.maxCm; cm++) {
-                    if (!fractionLookup[cm]) fractionLookup[cm] = {};
-                    fractionLookup[cm][r.offset_mm] = r.volume_tambahan;
+                    if (!fractionLookup[cm]) fractionLookup[cm] = { offsetMap: {}, cincinNumber };
+                    fractionLookup[cm].offsetMap[r.offset_mm] = r.volume_tambahan;
+                    fractionLookup[cm].cincinNumber = cincinNumber;
                 }
             });
             
@@ -198,13 +208,33 @@ export default function CombineTank() {
                 for (let cm = startCm; cm <= endCm; cm++) {
                     if (strappingMap.has(cm)) {
                         const baseVolume = strappingMap.get(cm);
-                        results.push({ level_mm: cm * 10, volume: baseVolume.toFixed(2) });
+                        const cincinInfo = fractionLookup[cm];
+                        const cincinNum = cincinInfo ? cincinInfo.cincinNumber : '-';
+                        
+                        results.push({ 
+                            level_mm: cm * 10,
+                            cm: cm,
+                            mm: 0,
+                            baseVolume: baseVolume,
+                            addVol: 0,
+                            totalVolume: baseVolume,
+                            cincin: cincinNum
+                        });
+                        
                         if (cm < maxCm) {
-                            const cmFraction = fractionLookup[cm] || {};
+                            const cmFraction = cincinInfo ? cincinInfo.offsetMap : {};
                             for (let mm = 1; mm <= 9; mm++) {
                                 const addVol = cmFraction[mm] || 0;
                                 const totalVolume = baseVolume + addVol;
-                                results.push({ level_mm: (cm * 10) + mm, volume: totalVolume.toFixed(2) });
+                                results.push({ 
+                                    level_mm: (cm * 10) + mm, 
+                                    cm: cm,
+                                    mm: mm,
+                                    baseVolume: baseVolume,
+                                    addVol: addVol,
+                                    totalVolume: totalVolume,
+                                    cincin: cincinNum
+                                });
                             }
                         }
                     }
@@ -222,13 +252,11 @@ export default function CombineTank() {
 
             // Calculate delta
             for (let idx = 0; idx < results.length; idx++) {
-                const currentVol = parseFloat(results[idx].volume);
                 let delta = 0;
                 if (idx > 0) {
-                    const prevVol = parseFloat(results[idx - 1].volume);
-                    delta = currentVol - prevVol;
+                    delta = results[idx].totalVolume - results[idx - 1].totalVolume;
                 }
-                results[idx].delta = delta.toFixed(2);
+                results[idx].delta = delta;
             }
 
             // Set strapping preview
@@ -264,17 +292,21 @@ export default function CombineTank() {
         if (combinedData.length === 0) return;
         
         const data = [
-            [`DATA ROAS TANGKI ${tankName ? tankName.toUpperCase() : '...'} LEVEL VS VOLUME`, '', '', ''],
+            [`DATA ROAS TANGKI ${tankName ? tankName.toUpperCase() : '...'} LEVEL VS VOLUME`, '', '', '', '', '', '', ''],
             [],
-            ['Level (mm)', 'Nama Tangki', 'Volume', 'Delta']
+            ['Level (mm)', 'Level Strapping (cm)', 'Level Fraction (mm)', 'Vol Strapping (L)', 'Vol Fraction (L)', 'Total Volume (L)', 'Delta Volume (L)', 'No Cincin']
         ];
         
         combinedData.forEach(r => {
             data.push([
                 parseInt(r.level_mm),
-                tankName || '',
-                parseFloat(r.volume),
-                parseFloat(r.delta || 0)
+                parseInt(r.cm),
+                parseInt(r.mm),
+                parseFloat(r.baseVolume),
+                parseFloat(r.addVol),
+                parseFloat(r.totalVolume),
+                parseFloat(r.delta),
+                r.cincin === '-' ? '-' : parseInt(r.cincin)
             ]);
         });
         
@@ -282,24 +314,26 @@ export default function CombineTank() {
         const ws = XLSX.utils.aoa_to_sheet(data);
         
         ws['!merges'] = [
-            { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }
+            { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }
         ];
         
         // Format columns
         for (let r = 3; r < data.length; r++) {
             const levelCellRef = XLSX.utils.encode_cell({ r, c: 0 });
-            const volumeCellRef = XLSX.utils.encode_cell({ r, c: 2 });
-            const deltaCellRef = XLSX.utils.encode_cell({ r, c: 3 });
+            const cmCellRef = XLSX.utils.encode_cell({ r, c: 1 });
+            const mmCellRef = XLSX.utils.encode_cell({ r, c: 2 });
+            const volStrapCellRef = XLSX.utils.encode_cell({ r, c: 3 });
+            const volFracCellRef = XLSX.utils.encode_cell({ r, c: 4 });
+            const totalVolCellRef = XLSX.utils.encode_cell({ r, c: 5 });
+            const deltaCellRef = XLSX.utils.encode_cell({ r, c: 6 });
             
-            if (ws[levelCellRef]) {
-                ws[levelCellRef].z = '#,##0';
-            }
-            if (ws[volumeCellRef]) {
-                ws[volumeCellRef].z = '#,##0.00';
-            }
-            if (ws[deltaCellRef]) {
-                ws[deltaCellRef].z = '#,##0.00';
-            }
+            if (ws[levelCellRef]) ws[levelCellRef].z = '#,##0';
+            if (ws[cmCellRef]) ws[cmCellRef].z = '#,##0';
+            if (ws[mmCellRef]) ws[mmCellRef].z = '#,##0';
+            if (ws[volStrapCellRef]) ws[volStrapCellRef].z = '#,##0.00';
+            if (ws[volFracCellRef]) ws[volFracCellRef].z = '#,##0.00';
+            if (ws[totalVolCellRef]) ws[totalVolCellRef].z = '#,##0.00';
+            if (ws[deltaCellRef]) ws[deltaCellRef].z = '#,##0.00';
         }
         
         XLSX.utils.book_append_sheet(wb, ws, 'Combined Data');
@@ -310,17 +344,11 @@ export default function CombineTank() {
         if (!searchQuery) return combinedData;
         const query = searchQuery.toLowerCase();
         return combinedData.filter(d => {
-            const formattedVol = formatVolume(d.volume);
-            const formattedLvl = formatLevel(d.level_mm);
-            const formattedDelta = formatVolume(d.delta);
             return d.level_mm.toString().includes(query) || 
-                   d.volume.toString().includes(query) ||
-                   formattedVol.includes(query) ||
-                   formattedLvl.includes(query) ||
-                   formattedDelta.includes(query) ||
-                   (tankName && tankName.toLowerCase().includes(query));
+                   formatVolume(d.totalVolume).toString().includes(query) ||
+                   formatVolume(d.delta).toString().includes(query);
         });
-    }, [combinedData, searchQuery, tankName]);
+    }, [combinedData, searchQuery]);
 
     const drawChart = useCallback(() => {
         const canvas = canvasRef.current;
@@ -336,18 +364,16 @@ export default function CombineTank() {
         ctx.clearRect(0, 0, width, height);
 
         // Prepare delta data
-        const deltaData = [];
-        let sumDelta = 0;
-        for (let i = 1; i < combinedData.length; i++) {
-            const dV = parseFloat(combinedData[i].volume) - parseFloat(combinedData[i-1].volume);
-            deltaData.push({ level_mm: combinedData[i].level_mm, delta_vol: dV });
-            sumDelta += dV;
-        }
+        const deltaData = combinedData.slice(1).map((d, i) => {
+            const prev = combinedData[i];
+            return { level_mm: d.level_mm, delta_vol: d.totalVolume - prev.totalVolume };
+        });
+        const sumDelta = deltaData.reduce((acc, curr) => acc + curr.delta_vol, 0);
 
         const avgDelta = sumDelta / deltaData.length;
         // Detect anomalies (>2% deviation from average)
         deltaData.forEach(d => {
-            d.isAnomaly = Math.abs(d.delta_vol - avgDelta) / avgDelta > 0.02; 
+            d.isAnomaly = Math.abs(d.delta_vol - avgDelta) / (avgDelta || 1) > 0.05; 
         });
 
         const maxDelta = Math.max(...deltaData.map(d => d.delta_vol));
@@ -490,14 +516,14 @@ export default function CombineTank() {
             }
         }
         
-        const delta = parseFloat(combinedData[bestIdx].volume) - parseFloat(combinedData[bestIdx - 1].volume);
+        const delta = combinedData[bestIdx].totalVolume - combinedData[bestIdx - 1].totalVolume;
         
         setTooltipInfo({
             x: e.clientX - rect.left,
             y: e.clientY - rect.top,
             level: combinedData[bestIdx].level_mm,
             delta: delta.toFixed(2),
-            volume: combinedData[bestIdx].volume
+            volume: combinedData[bestIdx].totalVolume
         });
     };
 
@@ -588,26 +614,34 @@ export default function CombineTank() {
                                 <thead>
                                     <tr>
                                         <th style={styles.th}>Level (mm)</th>
-                                        <th style={styles.th}>Nama Tangki</th>
-                                        <th style={styles.th}>Volume</th>
-                                        <th style={styles.th}>Delta</th>
+                                        <th style={styles.th}>Level Strapping (cm)</th>
+                                        <th style={styles.th}>Level Fraction (mm)</th>
+                                        <th style={styles.th}>Vol Strapping (L)</th>
+                                        <th style={styles.th}>Vol Fraction (L)</th>
+                                        <th style={styles.th}>Total Volume (L)</th>
+                                        <th style={styles.th}>Delta Volume (L)</th>
+                                        <th style={styles.th}>No Cincin</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {filteredData.length === 0 && (
-                                        <tr><td colSpan="4" style={styles.tdCenter}>Data tidak ditemukan.</td></tr>
+                                        <tr><td colSpan="8" style={styles.tdCenter}>Data tidak ditemukan.</td></tr>
                                     )}
                                     {filteredData.slice(0, 300).map((row, idx) => (
                                         <tr key={idx} style={styles.tr}>
-                                            <td style={styles.td}>{formatLevel(row.level_mm)}</td>
-                                            <td style={styles.td}>{tankName || "-"}</td>
-                                            <td style={styles.tdSuccess}>{formatVolume(row.volume)}</td>
+                                            <td style={styles.td}>{row.level_mm}</td>
+                                            <td style={styles.td}>{row.cm}</td>
+                                            <td style={styles.td}>{row.mm}</td>
+                                            <td style={styles.td}>{formatVolume(row.baseVolume)}</td>
+                                            <td style={styles.td}>{formatVolume(row.addVol)}</td>
+                                            <td style={styles.tdSuccess}>{formatVolume(row.totalVolume)}</td>
                                             <td style={styles.td}>{formatVolume(row.delta)}</td>
+                                            <td style={{ ...styles.td, textAlign: 'center' }}>{row.cincin}</td>
                                         </tr>
                                     ))}
                                     {filteredData.length > 300 && (
                                         <tr>
-                                            <td colSpan="4" style={styles.tdCenter}>
+                                            <td colSpan="8" style={styles.tdCenter}>
                                                 Menampilkan 300 dari total {filteredData.length} baris.<br/>
                                                 <em style={{opacity:0.7}}>Gunakan kotak pencarian di atas untuk mencari angka spesifik.</em>
                                             </td>

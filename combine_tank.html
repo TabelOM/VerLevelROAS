@@ -154,17 +154,25 @@
     <div id="results-area" class="glass-panel">
         <div class="toolbar">
             <input type="text" id="search-box" class="search-box" placeholder="Cari Level (mm) atau Volume...">
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <span style="color: var(--text-muted); font-size: 0.9rem;">Nama Tangki:</span>
-                <input type="text" id="tank-name-box" class="search-box" style="max-width: 120px; padding: 0.75rem 1rem;" placeholder="31T003...">
-            </div>
+            
             <button id="btn-export" class="btn-export">Export to Excel (XLSX)</button>
         </div>
 
         <div class="content-grid">
             <div class="table-container">
                 <table id="result-table">
-                    <thead><tr><th>Level (mm)</th><th>Nama Tangki</th><th>Volume</th><th>Delta</th></tr></thead>
+                    <thead>
+                        <tr>
+                            <th>Level (mm)</th>
+                            <th>Level Strapping (cm)</th>
+                            <th>Level Fraction (mm)</th>
+                            <th>Vol Strapping (L)</th>
+                            <th>Vol Fraction (L)</th>
+                            <th>Total Volume (L)</th>
+                            <th>Delta Volume (L)</th>
+                            <th>No Cincin</th>
+                        </tr>
+                    </thead>
                     <tbody id="table-body"></tbody>
                 </table>
             </div>
@@ -338,10 +346,20 @@
             await yieldToMain();
 
             const fractionLookup = {};
+            const cincinMap = new Map();
+            let cincinCounter = 1;
+
             fractionRules.forEach(r => {
+                const rangeKey = `${r.minCm}-${r.maxCm}`;
+                if (!cincinMap.has(rangeKey)) {
+                    cincinMap.set(rangeKey, cincinCounter++);
+                }
+                const cincinNumber = cincinMap.get(rangeKey);
+                
                 for (let cm = r.minCm; cm <= r.maxCm; cm++) {
-                    if (!fractionLookup[cm]) fractionLookup[cm] = {};
-                    fractionLookup[cm][r.offset_mm] = r.volume_tambahan;
+                    if (!fractionLookup[cm]) fractionLookup[cm] = { offsetMap: {}, cincinNumber };
+                    fractionLookup[cm].offsetMap[r.offset_mm] = r.volume_tambahan;
+                    fractionLookup[cm].cincinNumber = cincinNumber;
                 }
             });
             
@@ -364,14 +382,33 @@
                 for (let cm = startCm; cm <= endCm; cm++) {
                     if (strappingMap.has(cm)) {
                         const baseVolume = strappingMap.get(cm);
-                        results.push({ level_mm: cm * 10, volume: baseVolume.toFixed(2) });
+                        const cincinInfo = fractionLookup[cm];
+                        const cincinNum = cincinInfo ? cincinInfo.cincinNumber : '-';
+                        
+                        results.push({ 
+                            level_mm: cm * 10,
+                            cm: cm,
+                            mm: 0,
+                            baseVolume: baseVolume,
+                            addVol: 0,
+                            totalVolume: baseVolume,
+                            cincin: cincinNum
+                        });
                         
                         if (cm < maxCm) {
-                            const cmFraction = fractionLookup[cm] || {};
+                            const cmFraction = cincinInfo ? cincinInfo.offsetMap : {};
                             for (let mm = 1; mm <= 9; mm++) {
                                 const addVol = cmFraction[mm] || 0;
                                 const totalVolume = baseVolume + addVol;
-                                results.push({ level_mm: (cm * 10) + mm, volume: totalVolume.toFixed(2) });
+                                results.push({ 
+                                    level_mm: (cm * 10) + mm, 
+                                    cm: cm,
+                                    mm: mm,
+                                    baseVolume: baseVolume,
+                                    addVol: addVol,
+                                    totalVolume: totalVolume,
+                                    cincin: cincinNum
+                                });
                             }
                         }
                     }
@@ -388,13 +425,11 @@
 
             // Calculate delta
             for (let idx = 0; idx < results.length; idx++) {
-                const currentVol = parseFloat(results[idx].volume);
                 let delta = 0;
                 if (idx > 0) {
-                    const prevVol = parseFloat(results[idx - 1].volume);
-                    delta = currentVol - prevVol;
+                    delta = results[idx].totalVolume - results[idx - 1].totalVolume;
                 }
-                results[idx].delta = delta.toFixed(2);
+                results[idx].delta = delta;
             }
 
             // Set strapping preview
@@ -519,15 +554,9 @@
         if (query) {
             const q = query.toLowerCase();
             filtered = data.filter(d => {
-                const formattedVol = formatVolume(d.volume);
-                const formattedLvl = formatLevel(d.level_mm);
-                const formattedDelta = formatVolume(d.delta);
                 return d.level_mm.toString().includes(q) || 
-                       d.volume.toString().includes(q) ||
-                       formattedVol.includes(q) ||
-                       formattedLvl.includes(q) ||
-                       formattedDelta.includes(q) ||
-                       (tankName && tankName.toLowerCase().includes(q));
+                   formatVolume(d.totalVolume).toString().includes(q) ||
+                   formatVolume(d.delta).toString().includes(q);
             });
         }
 
@@ -543,12 +572,12 @@
         }
         
         if (filtered.length > renderLimit) {
-            html += `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+            html += `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
                 Menampilkan ${renderLimit} dari total ${filtered.length} baris.<br>
                 <em>Gunakan kotak pencarian di atas untuk mencari angka spesifik.</em>
             </td></tr>`;
         } else if (filtered.length === 0) {
-            html += `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Data tidak ditemukan.</td></tr>`;
+            html += `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Data tidak ditemukan.</td></tr>`;
         }
         
         tbody.innerHTML = html;
@@ -603,7 +632,7 @@
         
         const avgDelta = sumDelta / deltaData.length;
         // Detect anomalies (>2% deviation from average)
-        deltaData.forEach(d => { d.isAnomaly = Math.abs(d.delta_vol - avgDelta) / avgDelta > 0.02; });
+        deltaData.forEach(d => { d.isAnomaly = Math.abs(d.delta_vol - avgDelta) / (avgDelta || 1) > 0.05; });
 
         const maxDelta = Math.max(...deltaData.map(d => d.delta_vol));
         let minDeltaDraw = 0;
@@ -724,7 +753,7 @@
             }
         }
         
-        const delta = parseFloat(combinedData[bestIdx].volume) - parseFloat(combinedData[bestIdx - 1].volume);
+        const delta = combinedData[bestIdx].totalVolume - combinedData[bestIdx - 1].totalVolume;
         
         tooltip.innerHTML = `
             <div style="color: #94a3b8; margin-bottom: 4px;">Level: <strong style="color: white;">${combinedData[bestIdx].level_mm} mm</strong></div>
