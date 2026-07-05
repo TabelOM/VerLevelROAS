@@ -567,7 +567,22 @@ export default function CombineTank() {
     return (
         <div style={styles.container}>
             <header style={styles.header}>
-                <h1 style={styles.title}>Strapping & Fraction Combiner</h1>
+                <h1 style={styles.title}>
+                    Strapping & Fraction Combiner 
+                    <span style={{ 
+                        fontSize: '0.9rem', 
+                        verticalAlign: 'middle', 
+                        padding: '0.2rem 0.6rem', 
+                        background: 'rgba(59, 130, 246, 0.2)', 
+                        border: '1px solid rgba(59, 130, 246, 0.3)',
+                        borderRadius: '20px', 
+                        marginLeft: '0.75rem', 
+                        color: '#60a5fa',
+                        fontWeight: '500'
+                    }}>
+                        v1.3.0
+                    </span>
+                </h1>
                 <p style={styles.subtitle}>Verifikasi Level vs Volume Tanki ROAS</p>
             </header>
 
