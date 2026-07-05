@@ -409,9 +409,14 @@ export default function CombineTank() {
         let maxDeltaDraw = maxDelta;
 
         if (chartMode === 'zoom') {
-            const range = maxDelta - minDelta;
-            minDeltaDraw = Math.max(0, minDelta - range * 0.1); 
-            // Give 10% padding
+            const normalData = deltaData.filter(d => !d.isAnomaly);
+            if (normalData.length > 0) {
+                const normalMax = Math.max(...normalData.map(d => d.delta_vol));
+                const normalMin = Math.min(...normalData.map(d => d.delta_vol));
+                const range = normalMax - normalMin;
+                minDeltaDraw = Math.max(0, normalMin - range * 0.1); 
+                maxDeltaDraw = normalMax + range * 0.1;
+            }
         }
 
         const deltaRange = maxDeltaDraw - minDeltaDraw || 1;
@@ -443,7 +448,7 @@ export default function CombineTank() {
         
         const getXOffset = (delta) => {
             if (delta < minDeltaDraw) return 0;
-            return ((delta - minDeltaDraw) / deltaRange) * halfW;
+            return Math.min(((delta - minDeltaDraw) / deltaRange) * halfW, halfW);
         };
 
         // Grid lines X (Delta Volume)
@@ -626,7 +631,7 @@ export default function CombineTank() {
                         color: '#60a5fa',
                         fontWeight: '500'
                     }}>
-                        v1.4.3
+                        v1.4.4
                     </span>
                 </h1>
                 <p style={styles.subtitle}>Verifikasi Level vs Volume Tanki ROAS</p>
