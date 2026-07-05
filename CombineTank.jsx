@@ -397,9 +397,11 @@ export default function CombineTank() {
         const sumDelta = deltaData.reduce((acc, curr) => acc + curr.delta_vol, 0);
         const avgDelta = sumDelta / deltaData.length;
 
-        // Detect anomalies (>2% deviation from average)
+        // Detect anomalies (>15% deviation from average AND >50L absolute difference)
         deltaData.forEach(d => {
-            d.isAnomaly = Math.abs(d.delta_vol - avgDelta) / (avgDelta || 1) > 0.05; 
+            const devRatio = Math.abs(d.delta_vol - avgDelta) / (avgDelta || 1);
+            const devAbs = Math.abs(d.delta_vol - avgDelta);
+            d.isAnomaly = devRatio > 0.15 && devAbs > 50; 
         });
 
         const maxDelta = Math.max(...deltaData.map(d => d.delta_vol));
@@ -560,6 +562,15 @@ export default function CombineTank() {
         }
     }, [combinedData, isProcessing, drawChart]);
 
+    const toggleFullscreen = () => {
+        const elem = document.getElementById('chart-panel');
+        if (!document.fullscreenElement) {
+            elem.requestFullscreen().catch(err => console.error(err));
+        } else {
+            document.exitFullscreen();
+        }
+    };
+
     const handleCanvasMouseMove = (e) => {
         if (combinedData.length < 2) return;
         const rect = canvasRef.current.getBoundingClientRect();
@@ -631,7 +642,7 @@ export default function CombineTank() {
                         color: '#60a5fa',
                         fontWeight: '500'
                     }}>
-                        v1.4.4
+                        v1.4.5
                     </span>
                 </h1>
                 <p style={styles.subtitle}>Verifikasi Level vs Volume Tanki ROAS</p>
@@ -800,7 +811,14 @@ export default function CombineTank() {
                     {combinedData.length > 0 && !isProcessing && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                             {/* Large Highlight Chart Panel */}
-                            <div style={styles.glassPanel}>
+                            <div id="chart-panel" style={styles.glassPanel}>
+                                <style>{`
+                                    #chart-panel:fullscreen {
+                                        background: #0f172a !important;
+                                        padding: 2rem !important;
+                                        overflow-y: auto !important;
+                                    }
+                                `}</style>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                                     <h3 style={{ ...styles.panelTitle, margin: 0 }}>📈 Grafik Siluet Tanki (Δ Volume per mm)</h3>
                                     <div style={styles.chartControls}>
@@ -816,12 +834,27 @@ export default function CombineTank() {
                                         >
                                             🔍 Mode Kaca Pembesar
                                         </button>
+                                        <button 
+                                            style={styles.btnMode}
+                                            onClick={toggleFullscreen}
+                                        >
+                                            ⛶ Layar Penuh
+                                        </button>
                                     </div>
                                 </div>
-                                <div style={styles.chartContainer}>
+                                <div style={{
+                                    ...styles.chartContainer,
+                                    overflowY: chartMode === 'zoom' ? 'auto' : 'hidden',
+                                    overflowX: 'hidden'
+                                }}>
                                     <canvas 
                                         ref={canvasRef} 
-                                        style={{ width: '100%', height: '100%', cursor: 'crosshair' }}
+                                        style={{ 
+                                            width: '100%', 
+                                            height: chartMode === 'zoom' ? '2000px' : '100%', 
+                                            cursor: 'crosshair',
+                                            display: 'block'
+                                        }}
                                         onMouseMove={handleCanvasMouseMove}
                                         onMouseLeave={() => setTooltipInfo(null)}
                                     ></canvas>
@@ -852,9 +885,9 @@ export default function CombineTank() {
                                             boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
                                             whiteSpace: 'nowrap'
                                         }}>
-                                            <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Level: <strong style={{ color: 'white' }}>{tooltipInfo.level} mm</strong></div>
-                                            <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Δ Volume: <strong style={{ color: '#ef4444' }}>{formatVolume(tooltipInfo.delta)} KL/mm</strong></div>
-                                            <div style={{ color: '#94a3b8' }}>Total Vol: <strong style={{ color: '#10b981' }}>{formatVolume(tooltipInfo.volume)}</strong></div>
+                                            <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Level: <strong style={{ color: 'white' }}>{tooltipInfo.level.toLocaleString('id-ID')} mm</strong></div>
+                                            <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Δ Volume: <strong style={{ color: '#ef4444' }}>{tooltipInfo.delta.toLocaleString('id-ID', {maximumFractionDigits:2})} L</strong></div>
+                                            <div style={{ color: '#94a3b8' }}>Total Vol: <strong style={{ color: '#10b981' }}>{tooltipInfo.volume.toLocaleString('id-ID', {maximumFractionDigits:2})} L</strong></div>
                                         </div>
                                         </>
                                     )}
