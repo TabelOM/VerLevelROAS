@@ -515,9 +515,6 @@
             btnProcess.disabled = false; 
         }
     }
-});
-
-    function checkReady() { if (strappingRaw && fractionRaw) btnProcess.disabled = false; }
     const yieldToMain = () => new Promise(resolve => setTimeout(resolve, 15));
 
     function setProgress(percent, text) {
@@ -949,8 +946,20 @@ if (fractionRules.length === 0) {
         
         const height = canvas.offsetHeight;
         const paddingY = 40;
-        const minLevel = combinedData[1].level_mm;
-        const maxLevel = combinedData[combinedData.length - 1].level_mm;
+        const deltaDataAll = [];
+        for (let i = 1; i < combinedData.length; i++) {
+            const dV = parseFloat(combinedData[i].totalVolume) - parseFloat(combinedData[i-1].totalVolume);
+            deltaDataAll.push({ level_mm: combinedData[i].level_mm, delta_vol: dV });
+        }
+        
+        const deltaData = deltaDataAll.filter(d => d.delta_vol > 0);
+        if (deltaData.length === 0) {
+            tooltip.style.display = 'none';
+            return;
+        }
+
+        const minLevel = deltaData[0].level_mm;
+        const maxLevel = deltaData[deltaData.length - 1].level_mm;
         
         if (y < paddingY || y > height - paddingY) {
             tooltip.style.display = 'none';

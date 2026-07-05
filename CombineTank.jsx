@@ -512,8 +512,18 @@ export default function CombineTank() {
         
         const height = canvasRef.current.offsetHeight;
         const paddingY = 40;
-        const minLevel = combinedData[1].level_mm;
-        const maxLevel = combinedData[combinedData.length - 1].level_mm;
+        const deltaData = combinedData.slice(1).map((d, i) => {
+            const prev = combinedData[i];
+            return { level_mm: d.level_mm, delta_vol: d.totalVolume - prev.totalVolume };
+        }).filter(d => d.delta_vol > 0);
+
+        if (deltaData.length === 0) {
+            setTooltipInfo(null);
+            return;
+        }
+
+        const minLevel = deltaData[0].level_mm;
+        const maxLevel = deltaData[deltaData.length - 1].level_mm;
         
         if (y < paddingY || y > height - paddingY) {
             setTooltipInfo(null);
