@@ -382,31 +382,35 @@ export default function CombineTank() {
         ctx.scale(dpr, dpr);
         ctx.clearRect(0, 0, width, height);
 
-        // Prepare delta data
+        // Prepare delta data (ignore 0 values)
         const deltaData = combinedData.slice(1).map((d, i) => {
             const prev = combinedData[i];
             return { level_mm: d.level_mm, delta_vol: d.totalVolume - prev.totalVolume };
-        });
-        const sumDelta = deltaData.reduce((acc, curr) => acc + curr.delta_vol, 0);
+        }).filter(d => d.delta_vol > 0);
 
+        if (deltaData.length === 0) return;
+
+        const sumDelta = deltaData.reduce((acc, curr) => acc + curr.delta_vol, 0);
         const avgDelta = sumDelta / deltaData.length;
+
         // Detect anomalies (>2% deviation from average)
         deltaData.forEach(d => {
             d.isAnomaly = Math.abs(d.delta_vol - avgDelta) / (avgDelta || 1) > 0.05; 
         });
 
         const maxDelta = Math.max(...deltaData.map(d => d.delta_vol));
+        const minDelta = Math.min(...deltaData.map(d => d.delta_vol));
+        
         let minDeltaDraw = 0;
         let maxDeltaDraw = maxDelta;
 
         if (chartMode === 'zoom') {
-            const minD = Math.min(...deltaData.map(d => d.delta_vol));
-            const range = maxDelta - minD;
-            minDeltaDraw = Math.max(0, minD - range * 0.1); 
+            const range = maxDelta - minDelta;
+            minDeltaDraw = Math.max(0, minDelta - range * 0.1); 
             // Give 10% padding
         }
 
-        const deltaRange = maxDeltaDraw - minDeltaDraw;
+        const deltaRange = maxDeltaDraw - minDeltaDraw || 1;
 
         const minLevel = deltaData[0].level_mm;
         const maxLevel = deltaData[deltaData.length - 1].level_mm;
