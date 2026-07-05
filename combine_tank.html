@@ -234,7 +234,7 @@
 
 <div class="container">
     <header>
-        <h1>Strapping & Fraction Combiner <span style="font-size: 0.9rem; vertical-align: middle; padding: 0.2rem 0.6rem; background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 20px; margin-left: 0.75rem; color: #60a5fa; font-weight: 500;">v1.4.1</span></h1>
+        <h1>Strapping & Fraction Combiner <span style="font-size: 0.9rem; vertical-align: middle; padding: 0.2rem 0.6rem; background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 20px; margin-left: 0.75rem; color: #60a5fa; font-weight: 500;">v1.4.2</span></h1>
         <p>Verifikasi Level vs Volume Tanki ROAS</p>
     </header>
 
@@ -886,7 +886,7 @@ if (fractionRules.length === 0) {
             const y = height - paddingY - (i / lines) * (height - paddingY * 2);
             const lblLevel = Math.round(minLevel + (i / lines) * (maxLevel - minLevel));
             ctx.beginPath(); ctx.moveTo(paddingX, y); ctx.lineTo(width - paddingX, y); ctx.stroke();
-            ctx.fillText(lblLevel + 'mm', paddingX - 10, y);
+            ctx.fillText(lblLevel.toLocaleString('id-ID') + ' mm', paddingX - 10, y);
         }
 
         const halfW = (width - paddingX * 2) / 2;

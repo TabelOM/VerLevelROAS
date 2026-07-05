@@ -436,7 +436,7 @@ export default function CombineTank() {
             ctx.moveTo(paddingX, y);
             ctx.lineTo(width - paddingX, y);
             ctx.stroke();
-            ctx.fillText(lblLevel + 'mm', paddingX - 10, y);
+            ctx.fillText(lblLevel.toLocaleString('id-ID') + ' mm', paddingX - 10, y);
         }
 
         const halfW = (width - paddingX * 2) / 2;
@@ -626,7 +626,7 @@ export default function CombineTank() {
                         color: '#60a5fa',
                         fontWeight: '500'
                     }}>
-                        v1.4.1
+                        v1.4.2
                     </span>
                 </h1>
                 <p style={styles.subtitle}>Verifikasi Level vs Volume Tanki ROAS</p>
