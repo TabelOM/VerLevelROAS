@@ -23,9 +23,10 @@ export default function CombineTank() {
     const [tankName, setTankName] = useState("");
     const [strappingPreview, setStrappingPreview] = useState([]);
     const [fractionPreview, setFractionPreview] = useState([]);
+    const [isDragOver, setIsDragOver] = useState(false);
+    const [uploadError, setUploadError] = useState("");
     
-    const [isDragOverStrapping, setIsDragOverStrapping] = useState(false);
-    const [isDragOverFraction, setIsDragOverFraction] = useState(false);
+    
 
     const [isProcessing, setIsProcessing] = useState(false);
     const [progress, setProgress] = useState(0);
@@ -43,42 +44,40 @@ export default function CombineTank() {
         return match ? match[1] : "";
     };
 
-    const handleDragOver = (e, setDragState) => { e.preventDefault(); e.stopPropagation(); setDragState(true); };
-    const handleDragLeave = (e, setDragState) => { e.preventDefault(); e.stopPropagation(); setDragState(false); };
-    const handleDrop = (e, setDragState, setFile, setRaw, expectedType) => {
-        e.preventDefault(); e.stopPropagation(); setDragState(false);
-        const file = e.dataTransfer.files[0];
-        if (file) processFile(file, setFile, setRaw, expectedType);
-    };
-    const handleFileChange = (e, setFile, setRaw, expectedType) => {
-        const file = e.target.files[0];
-        if (file) processFile(file, setFile, setRaw, expectedType);
-    };
+    const handleFiles = (files) => {
+        let invalidFiles = [];
+        let detectedStrap = "";
+        let detectedFrac = "";
 
-    const processFile = (file, setFile, setRaw, expectedType) => {
-        const fileName = file.name.toLowerCase();
-        if (expectedType === 'strapping') {
-            if (!fileName.endsWith('.csv')) {
-                alert("File Strapping harus berformat CSV (.csv)!");
-                return;
+        Array.from(files).forEach(file => {
+            const fileName = file.name.toLowerCase();
+            if (fileName.endsWith('.csv')) {
+                setStrappingFile(file);
+                const reader = new FileReader();
+                reader.onload = (ev) => { setStrappingRaw(ev.target.result); };
+                reader.readAsText(file);
+                const d = extractTankName(file.name);
+                if (d) detectedStrap = d;
+            } else if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx') || fileName.endsWith('.html') || fileName.endsWith('.htm')) {
+                setFractionFile(file);
+                const reader = new FileReader();
+                reader.onload = (ev) => { setFractionRaw(ev.target.result); };
+                reader.readAsText(file);
+                const d = extractTankName(file.name);
+                if (d) detectedFrac = d;
+            } else {
+                invalidFiles.push(file.name);
             }
-            const detected = extractTankName(file.name);
-            if (detected) setTankName(detected);
-        } else if (expectedType === 'fraction') {
-            const allowed = ['.xls', '.xlsx', '.html', '.htm'];
-            const isValid = allowed.some(ext => fileName.endsWith(ext));
-            if (!isValid) {
-                alert("File Fraction harus berformat Excel atau HTML (.xls, .xlsx, .html)!");
-                return;
-            }
-            const detected = extractTankName(file.name);
-            if (detected) setTankName(detected);
+        });
+
+        if (detectedStrap) setTankName(detectedStrap);
+        else if (detectedFrac) setTankName(detectedFrac);
+
+        if (invalidFiles.length > 0) {
+            setUploadError(`Format tidak sesuai: ${invalidFiles.join(', ')}. Gunakan CSV (.csv) atau Excel/HTML (.xls, .xlsx, .html).`);
+        } else {
+            setUploadError("");
         }
-        
-        setFile(file);
-        const reader = new FileReader();
-        reader.onload = (ev) => { setRaw(ev.target.result); };
-        reader.readAsText(file);
     };
 
     const yieldToMain = () => new Promise(resolve => setTimeout(resolve, 15));
@@ -161,7 +160,12 @@ export default function CombineTank() {
             setProgressText("Membaca File Fraction...");
             await yieldToMain();
             const { rules: fractionRules, tankNo } = parseFraction(fractionRaw);
-            if (tankNo && !tankName) setTankName(tankNo);
+            if (tankNo) {
+                setTankName(tankNo);
+            } else {
+                const detected = extractTankName(strappingFile?.name || "") || extractTankName(fractionFile?.name || "");
+                if (detected) setTankName(detected);
+            }
             
             if (fractionRules.length === 0) {
                 throw new Error("Data Fraction kosong atau format tidak sesuai (dari;sampai;tinggi;volume). Pastikan formatnya benar.");
@@ -263,14 +267,14 @@ export default function CombineTank() {
             const strapArray = [];
             let strapCount = 0;
             for (let [cm, vol] of strappingMap.entries()) {
-                if (strapCount >= 5) break;
+                if (strapCount >= 100) break;
                 strapArray.push({ cm, vol });
                 strapCount++;
             }
             setStrappingPreview(strapArray);
 
-            // Set fraction preview
-            setFractionPreview(fractionRules.slice(0, 5));
+            // Set fraction preview to 100 items
+            setFractionPreview(fractionRules.slice(0, 100));
 
             setProgress(90);
             setProgressText("Menyiapkan Tampilan Tabel & Grafik...");
@@ -541,32 +545,64 @@ export default function CombineTank() {
                         <h3 style={styles.panelTitle}>📂 Upload Files</h3>
                         <div style={styles.uploadGridCompact}>
                             <div 
-                                style={{ ...styles.fileDropCompact, ...(isDragOverStrapping ? styles.fileDropActive : {}) }}
-                                onDragOver={(e) => handleDragOver(e, setIsDragOverStrapping)}
-                                onDragLeave={(e) => handleDragLeave(e, setIsDragOverStrapping)}
-                                onDrop={(e) => handleDrop(e, setIsDragOverStrapping, setStrappingFile, setStrappingRaw, 'strapping')}
+                                style={{ ...styles.fileDropCompact, ...(isDragOver ? styles.fileDropActive : {}) }}
+                                onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                                onDragLeave={() => setIsDragOver(false)}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    setIsDragOver(false);
+                                    if (e.dataTransfer.files) handleFiles(e.dataTransfer.files);
+                                }}
                             >
-                                <span style={styles.fileLabelCompact}>📁 1. Strapping File (CSV)</span>
-                                <p style={styles.fileHintCompact}>Format: Tinggi(cm);Volume</p>
-                                <input type="file" accept=".csv" style={styles.fileInput} onChange={(e) => handleFileChange(e, setStrappingFile, setStrappingRaw, 'strapping')} />
-                                <div style={{ ...styles.fileStatusCompact, color: strappingFile ? '#10b981' : '#94a3b8' }}>
-                                    {strappingFile ? strappingFile.name : 'Belum ada file.'}
+                                <span style={styles.fileLabelCompact}>📁 Drop atau Pilih Berkas di Sini</span>
+                                <p style={styles.fileHintCompact}>Unggah file Strapping (CSV) &amp; Fraction (XLS/XLSX/HTML)</p>
+                                <input 
+                                    type="file" 
+                                    multiple 
+                                    style={styles.fileInput} 
+                                    onChange={(e) => {
+                                        if (e.target.files) handleFiles(e.target.files);
+                                    }} 
+                                />
+                            </div>
+
+                            {/* Status list */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <div style={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: '0.5rem', 
+                                    fontSize: '0.85rem',
+                                    color: strappingFile ? '#10b981' : '#94a3b8'
+                                }}>
+                                    <span>{strappingFile ? '✅' : '⏳'}</span>
+                                    <span>Strapping (CSV): <strong>{strappingFile ? strappingFile.name : 'Belum diunggah'}</strong></span>
+                                </div>
+                                <div style={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: '0.5rem', 
+                                    fontSize: '0.85rem',
+                                    color: fractionFile ? '#10b981' : '#94a3b8'
+                                }}>
+                                    <span>{fractionFile ? '✅' : '⏳'}</span>
+                                    <span>Fraction (XLS/HTML): <strong>{fractionFile ? fractionFile.name : 'Belum diunggah'}</strong></span>
                                 </div>
                             </div>
 
-                            <div 
-                                style={{ ...styles.fileDropCompact, ...(isDragOverFraction ? styles.fileDropActive : {}) }}
-                                onDragOver={(e) => handleDragOver(e, setIsDragOverFraction)}
-                                onDragLeave={(e) => handleDragLeave(e, setIsDragOverFraction)}
-                                onDrop={(e) => handleDrop(e, setIsDragOverFraction, setFractionFile, setFractionRaw, 'fraction')}
-                            >
-                                <span style={styles.fileLabelCompact}>📁 2. Fraction File (XLS/HTML)</span>
-                                <p style={styles.fileHintCompact}>Format: HTML (dari;sampai;tinggi;volume)</p>
-                                <input type="file" accept=".xls,.xlsx,.html,.htm" style={styles.fileInput} onChange={(e) => handleFileChange(e, setFractionFile, setFractionRaw, 'fraction')} />
-                                <div style={{ ...styles.fileStatusCompact, color: fractionFile ? '#10b981' : '#94a3b8' }}>
-                                    {fractionFile ? fractionFile.name : 'Belum ada file.'}
+                            {uploadError && (
+                                <div style={{ 
+                                    color: '#ef4444', 
+                                    fontSize: '0.8rem', 
+                                    marginTop: '0.5rem', 
+                                    background: 'rgba(239, 68, 68, 0.1)', 
+                                    padding: '0.5rem', 
+                                    borderRadius: '6px',
+                                    border: '1px solid rgba(239, 68, 68, 0.2)'
+                                }}>
+                                    ⚠️ {uploadError}
                                 </div>
-                            </div>
+                            )}
                         </div>
 
                         {isProcessing && (
@@ -592,7 +628,7 @@ export default function CombineTank() {
                         <div style={styles.glassPanelCompact}>
                             <h3 style={styles.panelTitle}>📄 Preview Data Input</h3>
                             
-                            <h4 style={styles.previewTitlePrimary}>File 1: Data Strapping</h4>
+                            <h4 style={styles.previewTitlePrimary}>File 1: Data Strapping (100 Baris Pertama)</h4>
                             <div style={{ ...styles.tableContainerPreview, marginBottom: '1rem' }}>
                                 <table style={styles.table}>
                                     <thead>
@@ -612,7 +648,7 @@ export default function CombineTank() {
                                 </table>
                             </div>
 
-                            <h4 style={styles.previewTitleSuccess}>File 2: Data Fraction</h4>
+                            <h4 style={styles.previewTitleSuccess}>File 2: Data Fraction (100 Baris Pertama)</h4>
                             <div style={styles.tableContainerPreview}>
                                 <table style={styles.table}>
                                     <thead>
@@ -704,13 +740,17 @@ export default function CombineTank() {
                                 <div style={styles.toolbar}>
                                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                         <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Nama Tangki:</span>
-                                        <input 
-                                            type="text" 
-                                            placeholder="31T003..." 
-                                            style={{ ...styles.searchBox, maxWidth: '100px', padding: '0.5rem 0.75rem' }}
-                                            value={tankName}
-                                            onChange={(e) => setTankName(e.target.value)}
-                                        />
+                                        <span style={{ 
+                                            background: 'rgba(59, 130, 246, 0.2)',
+                                            color: '#60a5fa',
+                                            padding: '0.25rem 0.75rem',
+                                            borderRadius: '6px',
+                                            fontWeight: '600',
+                                            fontSize: '0.9rem',
+                                            border: '1px solid rgba(59, 130, 246, 0.3)'
+                                        }}>
+                                            {tankName || 'TIDAK TERDETEKSI'}
+                                        </span>
                                     </div>
                                     <input 
                                         type="text" 
@@ -1096,8 +1136,7 @@ const styles = {
         position: 'relative',
         overflow: 'hidden'
     },
-    tableContainerPreview: {
-        maxHeight: '220px',
+    tableContainerPreview: { maxHeight: '260px',
         overflowY: 'auto',
         borderRadius: '8px',
         border: '1px solid rgba(255, 255, 255, 0.1)',

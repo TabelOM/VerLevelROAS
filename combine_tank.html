@@ -227,18 +227,25 @@
             <div class="glass-panel-compact">
                 <h3 class="panel-title">📂 Upload Files</h3>
                 <div class="upload-grid-compact">
-                    <div class="file-drop-compact" id="drop-strapping">
-                        <span class="file-label-compact">📁 1. Strapping File (CSV)</span>
-                        <p class="file-hint-compact">Format: Tinggi(cm);Volume</p>
-                        <input type="file" id="file-strapping" accept=".csv" style="position: absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;" />
-                        <div class="file-status-compact" id="status-strapping" style="color: var(--text-muted);">Belum ada file.</div>
+                    <div class="file-drop-compact" id="drop-zone-single">
+                        <span class="file-label-compact">📁 Drop atau Pilih Berkas di Sini</span>
+                        <p class="file-hint-compact">Unggah file Strapping (CSV) &amp; Fraction (XLS/XLSX/HTML)</p>
+                        <input type="file" id="file-input-single" multiple style="position: absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;" />
                     </div>
 
-                    <div class="file-drop-compact" id="drop-fraction">
-                        <span class="file-label-compact">📁 2. Fraction File (XLS/HTML)</span>
-                        <p class="file-hint-compact">Format: HTML (dari;sampai;tinggi;volume)</p>
-                        <input type="file" id="file-fraction" accept=".xls,.xlsx,.html,.htm" style="position: absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;" />
-                        <div class="file-status-compact" id="status-fraction" style="color: var(--text-muted);">Belum ada file.</div>
+                    <!-- Status list -->
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
+                        <div id="status-strapping-item" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">
+                            <span id="icon-strapping">⏳</span>
+                            <span>Strapping (CSV): <strong id="name-strapping">Belum diunggah</strong></span>
+                        </div>
+                        <div id="status-fraction-item" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">
+                            <span id="icon-fraction">⏳</span>
+                            <span>Fraction (XLS/HTML): <strong id="name-fraction">Belum diunggah</strong></span>
+                        </div>
+                    </div>
+
+                    <div id="upload-error-msg" style="display:none; color: #ef4444; font-size: 0.8rem; margin-top: 0.5rem; background: rgba(239, 68, 68, 0.1); padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.2);">
                     </div>
                 </div>
 
@@ -254,7 +261,7 @@
             <div id="preview-area" class="glass-panel-compact" style="display: none;">
                 <h3 class="panel-title">📄 Preview Data Input</h3>
                 
-                <h4 class="preview-title-primary">File 1: Data Strapping</h4>
+                <h4 class="preview-title-primary">File 1: Data Strapping (100 Baris Pertama)</h4>
                 <div class="table-container-preview" style="margin-bottom: 1rem; max-height: 150px;">
                     <table>
                         <thead>
@@ -267,7 +274,7 @@
                     </table>
                 </div>
 
-                <h4 class="preview-title-success">File 2: Data Fraction</h4>
+                <h4 class="preview-title-success">File 2: Data Fraction (100 Baris Pertama)</h4>
                 <div class="table-container-preview" style="max-height: 150px;">
                     <table>
                         <thead>
@@ -312,7 +319,9 @@
                     <div class="toolbar">
                         <div style="display: flex; gap: 0.5rem; align-items: center;">
                             <span style="color: var(--text-muted); font-size: 0.9rem;">Nama Tangki:</span>
-                            <input type="text" id="tank-name-box" class="search-box" style="max-width: 100px; padding: 0.5rem 0.75rem;" placeholder="31T003...">
+                            <span id="tank-name-badge" style="background: rgba(59, 130, 246, 0.2); color: var(--primary); padding: 0.25rem 0.75rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem; border: 1px solid rgba(59, 130, 246, 0.3);">
+                                TIDAK TERDETEKSI
+                            </span>
                         </div>
                         <input type="text" id="search-box" class="search-box" style="max-width: 180px; padding: 0.5rem 0.75rem;" placeholder="Cari...">
                         <button id="btn-export" class="btn-export">Export to Excel (XLSX)</button>
@@ -371,57 +380,85 @@
     const progressContainer = document.getElementById('progress-container');
     const progressText = document.getElementById('progress-text');
 
-    function setupDragAndDrop(dropId, inputId, statusId, expectedType, callback) {
-        const dropZone = document.getElementById(dropId);
-        const input = document.getElementById(inputId);
-        const status = document.getElementById(statusId);
+    const dropZone = document.getElementById('drop-zone-single');
+    const fileInput = document.getElementById('file-input-single');
+    const uploadErrorMsg = document.getElementById('upload-error-msg');
 
-        const prevent = (e) => { e.preventDefault(); e.stopPropagation(); };
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => dropZone.addEventListener(evt, prevent, false));
-        ['dragenter', 'dragover'].forEach(evt => dropZone.addEventListener(evt, () => dropZone.classList.add('dragover'), false));
-        ['dragleave', 'drop'].forEach(evt => dropZone.addEventListener(evt, () => dropZone.classList.remove('dragover'), false));
+    const prevent = (e) => { e.preventDefault(); e.stopPropagation(); };
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => dropZone.addEventListener(evt, prevent, false));
+    ['dragenter', 'dragover'].forEach(evt => dropZone.addEventListener(evt, () => dropZone.style.background = 'rgba(59, 130, 246, 0.1)', false));
+    ['dragleave', 'drop'].forEach(evt => dropZone.addEventListener(evt, () => dropZone.style.background = 'rgba(255,255,255,0.01)', false));
 
-        dropZone.addEventListener('drop', (e) => { handleFile(e.dataTransfer.files[0]); });
-        input.addEventListener('change', (e) => { handleFile(e.target.files[0]); });
+    dropZone.addEventListener('drop', (e) => { handleFiles(e.dataTransfer.files); });
+    fileInput.addEventListener('change', (e) => { handleFiles(e.target.files); });
 
-        function handleFile(file) {
-            if (!file) return;
-            
+    let strappingFile = null;
+    let fractionFile = null;
+
+    function handleFiles(files) {
+        let invalidFiles = [];
+        let detectedStrap = "";
+        let detectedFrac = "";
+
+        Array.from(files).forEach(file => {
             const fileName = file.name.toLowerCase();
-            if (expectedType === 'strapping') {
-                if (!fileName.endsWith('.csv')) {
-                    alert("File Strapping harus berformat CSV (.csv)!");
-                    return;
-                }
-                const detected = extractTankName(file.name);
-                if (detected) {
-                    tankName = detected;
-                    document.getElementById('tank-name-box').value = detected.toUpperCase();
-                }
-            } else if (expectedType === 'fraction') {
-                const allowed = ['.xls', '.xlsx', '.html', '.htm'];
-                const isValid = allowed.some(ext => fileName.endsWith(ext));
-                if (!isValid) {
-                    alert("File Fraction harus berformat Excel atau HTML (.xls, .xlsx, .html)!");
-                    return;
-                }
-                const detected = extractTankName(file.name);
-                if (detected) {
-                    tankName = detected;
-                    document.getElementById('tank-name-box').value = detected.toUpperCase();
-                }
-            }
+            if (fileName.endsWith('.csv')) {
+                strappingFile = file;
+                const statusName = document.getElementById('name-strapping');
+                const statusIcon = document.getElementById('icon-strapping');
+                const statusItem = document.getElementById('status-strapping-item');
+                
+                statusName.textContent = file.name;
+                statusIcon.textContent = '✅';
+                statusItem.style.color = '#10b981';
 
-            status.textContent = `File Siap: ${file.name}`;
-            status.style.color = 'var(--success)';
-            const reader = new FileReader();
-            reader.onload = (ev) => callback(ev.target.result);
-            reader.readAsText(file);
+                const reader = new FileReader();
+                reader.onload = (ev) => { strappingRaw = ev.target.result; checkReady(); };
+                reader.readAsText(file);
+                
+                const d = extractTankName(file.name);
+                if (d) detectedStrap = d;
+            } else if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx') || fileName.endsWith('.html') || fileName.endsWith('.htm')) {
+                fractionFile = file;
+                const statusName = document.getElementById('name-fraction');
+                const statusIcon = document.getElementById('icon-fraction');
+                const statusItem = document.getElementById('status-fraction-item');
+
+                statusName.textContent = file.name;
+                statusIcon.textContent = '✅';
+                statusItem.style.color = '#10b981';
+
+                const reader = new FileReader();
+                reader.onload = (ev) => { fractionRaw = ev.target.result; checkReady(); };
+                reader.readAsText(file);
+
+                const d = extractTankName(file.name);
+                if (d) detectedFrac = d;
+            } else {
+                invalidFiles.push(file.name);
+            }
+        });
+
+        if (detectedStrap) {
+            tankName = detectedStrap;
+        } else if (detectedFrac) {
+            tankName = detectedFrac;
+        }
+
+        if (invalidFiles.length > 0) {
+            uploadErrorMsg.textContent = `⚠️ Format tidak sesuai: ${invalidFiles.join(', ')}. Gunakan CSV (.csv) atau Excel/HTML (.xls, .xlsx, .html).`;
+            uploadErrorMsg.style.display = 'block';
+        } else {
+            uploadErrorMsg.style.display = 'none';
         }
     }
 
-    setupDragAndDrop('drop-strapping', 'file-strapping', 'status-strapping', 'strapping', (res) => { strappingRaw = res; checkReady(); });
-    setupDragAndDrop('drop-fraction', 'file-fraction', 'status-fraction', 'fraction', (res) => { fractionRaw = res; checkReady(); });
+    function checkReady() { 
+        if (strappingRaw && fractionRaw) {
+            btnProcess.disabled = false; 
+        }
+    }
+});
 
     function checkReady() { if (strappingRaw && fractionRaw) btnProcess.disabled = false; }
     const yieldToMain = () => new Promise(resolve => setTimeout(resolve, 15));
@@ -447,12 +484,15 @@
             setProgress(15, 'Membaca File Fraction...');
             await yieldToMain();
             const { rules: fractionRules, tankNo } = parseFraction(fractionRaw);
-            if (tankNo && !tankName) {
+            if (tankNo) {
                 tankName = tankNo;
-                document.getElementById('tank-name-box').value = tankNo.toUpperCase();
+            } else {
+                const detected = extractTankName(strappingFile ? strappingFile.name : "") || extractTankName(fractionFile ? fractionFile.name : "");
+                if (detected) tankName = detected;
             }
-            
-            if (fractionRules.length === 0) {
+            const badge = document.getElementById('tank-name-badge');
+            if (badge) badge.textContent = tankName ? tankName.toUpperCase() : 'TIDAK TERDETEKSI';
+if (fractionRules.length === 0) {
                 throw new Error("Data Fraction kosong atau format tidak sesuai (dari;sampai;tinggi;volume). Pastikan formatnya benar.");
             }
             
@@ -551,7 +591,7 @@
             let strapHtml = '';
             let count = 0;
             for (let [cm, vol] of strappingMap.entries()) {
-                if (count >= 5) break;
+                if (count >= 100) break;
                 strapHtml += `<tr>
                     <td class="td-preview">${cm} cm</td>
                     <td class="td-preview">${vol.toFixed(2)}</td>
@@ -560,10 +600,10 @@
             }
             strapPreviewBody.innerHTML = strapHtml;
 
-            // Set fraction preview
+            // Fraction Preview to 100
             const fractionPreviewBody = document.getElementById('fraction-preview-body');
             let fracHtml = '';
-            for (let i = 0; i < Math.min(fractionRules.length, 5); i++) {
+            for (let i = 0; i < Math.min(fractionRules.length, 100); i++) {
                 fracHtml += `<tr>
                     <td class="td-preview">${fractionRules[i].minCm}</td>
                     <td class="td-preview">${fractionRules[i].maxCm}</td>
