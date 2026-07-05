@@ -531,181 +531,69 @@ export default function CombineTank() {
         <div style={styles.container}>
             <header style={styles.header}>
                 <h1 style={styles.title}>Strapping & Fraction Combiner</h1>
-                <p style={styles.subtitle}>Deteksi anomali data melalui grafik Tank Silhouette.</p>
+                <p style={styles.subtitle}>Verifikasi Level vs Volume Tanki ROAS</p>
             </header>
 
-            <div style={styles.glassPanel}>
-                <div style={styles.uploadGrid}>
-                    <div 
-                        style={{ ...styles.fileDrop, ...(isDragOverStrapping ? styles.fileDropActive : {}) }}
-                        onDragOver={(e) => handleDragOver(e, setIsDragOverStrapping)}
-                        onDragLeave={(e) => handleDragLeave(e, setIsDragOverStrapping)}
-                        onDrop={(e) => handleDrop(e, setIsDragOverStrapping, setStrappingFile, setStrappingRaw, 'strapping')}
-                    >
-                        <span style={styles.fileLabel}>📁 1. Drop / Pilih File Strapping (CSV)</span>
-                        <p style={styles.fileHint}>Format: Tinggi(cm);Volume</p>
-                        <input type="file" accept=".csv" style={styles.fileInput} onChange={(e) => handleFileChange(e, setStrappingFile, setStrappingRaw, 'strapping')} />
-                        <div style={{ ...styles.fileStatus, color: strappingFile ? '#10b981' : '#94a3b8' }}>
-                            {strappingFile ? `File Siap: ${strappingFile.name}` : 'Belum ada file.'}
-                        </div>
-                    </div>
+            <div style={styles.layoutGrid}>
+                {/* LEFT COLUMN: Upload & Preview */}
+                <div style={styles.leftCol}>
+                    <div style={styles.glassPanelCompact}>
+                        <h3 style={styles.panelTitle}>📂 Upload Files</h3>
+                        <div style={styles.uploadGridCompact}>
+                            <div 
+                                style={{ ...styles.fileDropCompact, ...(isDragOverStrapping ? styles.fileDropActive : {}) }}
+                                onDragOver={(e) => handleDragOver(e, setIsDragOverStrapping)}
+                                onDragLeave={(e) => handleDragLeave(e, setIsDragOverStrapping)}
+                                onDrop={(e) => handleDrop(e, setIsDragOverStrapping, setStrappingFile, setStrappingRaw, 'strapping')}
+                            >
+                                <span style={styles.fileLabelCompact}>📁 1. Strapping File (CSV)</span>
+                                <p style={styles.fileHintCompact}>Format: Tinggi(cm);Volume</p>
+                                <input type="file" accept=".csv" style={styles.fileInput} onChange={(e) => handleFileChange(e, setStrappingFile, setStrappingRaw, 'strapping')} />
+                                <div style={{ ...styles.fileStatusCompact, color: strappingFile ? '#10b981' : '#94a3b8' }}>
+                                    {strappingFile ? strappingFile.name : 'Belum ada file.'}
+                                </div>
+                            </div>
 
-                    <div 
-                        style={{ ...styles.fileDrop, ...(isDragOverFraction ? styles.fileDropActive : {}) }}
-                        onDragOver={(e) => handleDragOver(e, setIsDragOverFraction)}
-                        onDragLeave={(e) => handleDragLeave(e, setIsDragOverFraction)}
-                        onDrop={(e) => handleDrop(e, setIsDragOverFraction, setFractionFile, setFractionRaw, 'fraction')}
-                    >
-                        <span style={styles.fileLabel}>📁 2. Drop / Pilih File Fraction (XLS)</span>
-                        <p style={styles.fileHint}>Format: Export HTML (dari;sampai;tinggi;volume)</p>
-                        <input type="file" accept=".xls,.xlsx,.html,.htm" style={styles.fileInput} onChange={(e) => handleFileChange(e, setFractionFile, setFractionRaw, 'fraction')} />
-                        <div style={{ ...styles.fileStatus, color: fractionFile ? '#10b981' : '#94a3b8' }}>
-                            {fractionFile ? `File Siap: ${fractionFile.name}` : 'Belum ada file.'}
+                            <div 
+                                style={{ ...styles.fileDropCompact, ...(isDragOverFraction ? styles.fileDropActive : {}) }}
+                                onDragOver={(e) => handleDragOver(e, setIsDragOverFraction)}
+                                onDragLeave={(e) => handleDragLeave(e, setIsDragOverFraction)}
+                                onDrop={(e) => handleDrop(e, setIsDragOverFraction, setFractionFile, setFractionRaw, 'fraction')}
+                            >
+                                <span style={styles.fileLabelCompact}>📁 2. Fraction File (XLS/HTML)</span>
+                                <p style={styles.fileHintCompact}>Format: HTML (dari;sampai;tinggi;volume)</p>
+                                <input type="file" accept=".xls,.xlsx,.html,.htm" style={styles.fileInput} onChange={(e) => handleFileChange(e, setFractionFile, setFractionRaw, 'fraction')} />
+                                <div style={{ ...styles.fileStatusCompact, color: fractionFile ? '#10b981' : '#94a3b8' }}>
+                                    {fractionFile ? fractionFile.name : 'Belum ada file.'}
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
 
-                {isProcessing && (
-                    <div style={styles.progressWrapper}>
-                        <div style={styles.progressText}>{progressText}</div>
-                        <div style={styles.progressContainer}>
-                            <div style={{ ...styles.progressBar, width: `${progress}%` }}></div>
-                        </div>
-                    </div>
-                )}
+                        {isProcessing && (
+                            <div style={styles.progressWrapper}>
+                                <div style={styles.progressText}>{progressText}</div>
+                                <div style={styles.progressContainer}>
+                                    <div style={{ ...styles.progressBar, width: `${progress}%` }}></div>
+                                </div>
+                            </div>
+                        )}
 
-                <button 
-                    style={{ ...styles.btnProcess, ...(!(strappingRaw && fractionRaw) || isProcessing ? styles.btnDisabled : {}) }}
-                    disabled={!(strappingRaw && fractionRaw) || isProcessing}
-                    onClick={handleProcess}
-                >
-                    {isProcessing ? 'Memproses...' : (combinedData.length > 0 ? 'Proses Ulang Data' : 'Proses & Gabungkan Data')}
-                </button>
-            </div>
-
-            {combinedData.length > 0 && !isProcessing && (
-                <div style={styles.glassPanel}>
-                    <div style={styles.toolbar}>
-                        <input 
-                            type="text" 
-                            placeholder="Cari Level (mm) atau Volume..." 
-                            style={styles.searchBox}
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                            <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Nama Tangki:</span>
-                            <input 
-                                type="text" 
-                                placeholder="31T003..." 
-                                style={{ ...styles.searchBox, maxWidth: '120px', padding: '0.75rem 1rem' }}
-                                value={tankName}
-                                onChange={(e) => setTankName(e.target.value)}
-                            />
-                        </div>
-                        <button style={styles.btnExport} onClick={handleExport}>
-                            Export to Excel (XLS)
+                        <button 
+                            style={{ ...styles.btnProcess, ...(!(strappingRaw && fractionRaw) || isProcessing ? styles.btnDisabled : {}) }}
+                            disabled={!(strappingRaw && fractionRaw) || isProcessing}
+                            onClick={handleProcess}
+                        >
+                            {isProcessing ? 'Memproses...' : (combinedData.length > 0 ? 'Proses Ulang Data' : 'Proses & Gabungkan')}
                         </button>
                     </div>
 
-                    <div style={styles.contentGrid}>
-                        <div style={styles.tableContainer}>
-                            <table style={styles.table}>
-                                <thead>
-                                    <tr>
-                                        <th style={styles.th}>Level (mm)</th>
-                                        <th style={styles.th}>Level Strapping (cm)</th>
-                                        <th style={styles.th}>Level Fraction (mm)</th>
-                                        <th style={styles.th}>Vol Strapping (L)</th>
-                                        <th style={styles.th}>Vol Fraction (L)</th>
-                                        <th style={styles.th}>Total Volume (L)</th>
-                                        <th style={styles.th}>Delta Volume (L)</th>
-                                        <th style={styles.th}>No Cincin</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredData.length === 0 && (
-                                        <tr><td colSpan="8" style={styles.tdCenter}>Data tidak ditemukan.</td></tr>
-                                    )}
-                                    {filteredData.slice(0, 300).map((row, idx) => (
-                                        <tr key={idx} style={styles.tr}>
-                                            <td style={styles.td}>{row.level_mm}</td>
-                                            <td style={styles.td}>{row.cm}</td>
-                                            <td style={styles.td}>{row.mm}</td>
-                                            <td style={styles.td}>{formatVolume(row.baseVolume)}</td>
-                                            <td style={styles.td}>{formatVolume(row.addVol)}</td>
-                                            <td style={styles.tdSuccess}>{formatVolume(row.totalVolume)}</td>
-                                            <td style={styles.td}>{formatVolume(row.delta)}</td>
-                                            <td style={{ ...styles.td, textAlign: 'center' }}>{row.cincin}</td>
-                                        </tr>
-                                    ))}
-                                    {filteredData.length > 300 && (
-                                        <tr>
-                                            <td colSpan="8" style={styles.tdCenter}>
-                                                Menampilkan 300 dari total {filteredData.length} baris.<br/>
-                                                <em style={{opacity:0.7}}>Gunakan kotak pencarian di atas untuk mencari angka spesifik.</em>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                        
-                        <div style={styles.chartWrapper}>
-                            <div style={styles.chartControls}>
-                                <button 
-                                    style={{ ...styles.btnMode, ...(chartMode === 'normal' ? styles.btnModeActive : {}) }}
-                                    onClick={() => setChartMode('normal')}
-                                >
-                                    Mode Normal
-                                </button>
-                                <button 
-                                    style={{ ...styles.btnMode, ...(chartMode === 'zoom' ? styles.btnModeActive : {}) }}
-                                    onClick={() => setChartMode('zoom')}
-                                >
-                                    🔍 Mode Kaca Pembesar
-                                </button>
-                            </div>
-                            <div style={styles.chartContainer}>
-                                <canvas 
-                                    ref={canvasRef} 
-                                    style={{ width: '100%', height: '100%', cursor: 'crosshair' }}
-                                    onMouseMove={handleCanvasMouseMove}
-                                    onMouseLeave={() => setTooltipInfo(null)}
-                                ></canvas>
-                                {tooltipInfo && (
-                                    <div style={{
-                                        position: 'absolute',
-                                        left: tooltipInfo.x + 15,
-                                        top: tooltipInfo.y - 15,
-                                        background: 'rgba(15, 23, 42, 0.95)',
-                                        border: '1px solid rgba(255,255,255,0.2)',
-                                        padding: '8px 12px',
-                                        borderRadius: '6px',
-                                        pointerEvents: 'none',
-                                        fontSize: '0.85rem',
-                                        zIndex: 100,
-                                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                                        whiteSpace: 'nowrap'
-                                    }}>
-                                        <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Level: <strong style={{ color: 'white' }}>{tooltipInfo.level} mm</strong></div>
-                                        <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Δ Volume: <strong style={{ color: '#ef4444' }}>{formatVolume(tooltipInfo.delta)} KL/mm</strong></div>
-                                        <div style={{ color: '#94a3b8' }}>Total Vol: <strong style={{ color: '#10b981' }}>{formatVolume(tooltipInfo.volume)}</strong></div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {combinedData.length > 0 && !isProcessing && strappingPreview.length > 0 && (
-                <div style={styles.glassPanel}>
-                    <h3 style={{ color: '#f8fafc', marginBottom: '1.2rem', fontWeight: '600', fontSize: '1.2rem' }}>📄 Preview Data Input</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                        <div>
-                            <h4 style={{ color: '#60a5fa', marginBottom: '0.5rem', fontSize: '0.95rem' }}>File 1: Data Strapping (5 Baris Pertama)</h4>
-                            <div style={styles.tableContainerPreview}>
+                    {/* Previews (only shown when combinedData exists) */}
+                    {combinedData.length > 0 && !isProcessing && strappingPreview.length > 0 && (
+                        <div style={styles.glassPanelCompact}>
+                            <h3 style={styles.panelTitle}>📄 Preview Data Input</h3>
+                            
+                            <h4 style={styles.previewTitlePrimary}>File 1: Data Strapping</h4>
+                            <div style={{ ...styles.tableContainerPreview, marginBottom: '1rem' }}>
                                 <table style={styles.table}>
                                     <thead>
                                         <tr>
@@ -723,16 +611,15 @@ export default function CombineTank() {
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
-                        <div>
-                            <h4 style={{ color: '#10b981', marginBottom: '0.5rem', fontSize: '0.95rem' }}>File 2: Data Fraction (5 Baris Pertama)</h4>
+
+                            <h4 style={styles.previewTitleSuccess}>File 2: Data Fraction</h4>
                             <div style={styles.tableContainerPreview}>
                                 <table style={styles.table}>
                                     <thead>
                                         <tr>
                                             <th style={styles.thPreview}>Dari (cm)</th>
                                             <th style={styles.thPreview}>Sampai (cm)</th>
-                                            <th style={styles.thPreview}>Offset (mm)</th>
+                                            <th style={styles.thPreview}>Offs (mm)</th>
                                             <th style={styles.thPreview}>Vol Tambahan</th>
                                         </tr>
                                     </thead>
@@ -749,14 +636,238 @@ export default function CombineTank() {
                                 </table>
                             </div>
                         </div>
-                    </div>
+                    )}
                 </div>
-            )}
+
+                {/* RIGHT COLUMN: Chart & Table */}
+                <div style={styles.rightCol}>
+                    {combinedData.length === 0 && !isProcessing && (
+                        <div style={styles.welcomePanel}>
+                            <h3 style={{ margin: '0 0 0.5rem 0', color: '#60a5fa' }}>Unggah berkas untuk memulai</h3>
+                            <p style={{ margin: 0, color: '#94a3b8' }}>Unggah file strapping (.csv) dan file fraction (.xls/xlsx/html) di sebelah kiri, kemudian klik tombol proses.</p>
+                        </div>
+                    )}
+
+                    {combinedData.length > 0 && !isProcessing && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            {/* Large Highlight Chart Panel */}
+                            <div style={styles.glassPanel}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                    <h3 style={{ ...styles.panelTitle, margin: 0 }}>📈 Grafik Siluet Tanki (Δ Volume per mm)</h3>
+                                    <div style={styles.chartControls}>
+                                        <button 
+                                            style={{ ...styles.btnMode, ...(chartMode === 'normal' ? styles.btnModeActive : {}) }}
+                                            onClick={() => setChartMode('normal')}
+                                        >
+                                            Mode Normal
+                                        </button>
+                                        <button 
+                                            style={{ ...styles.btnMode, ...(chartMode === 'zoom' ? styles.btnModeActive : {}) }}
+                                            onClick={() => setChartMode('zoom')}
+                                        >
+                                            🔍 Mode Kaca Pembesar
+                                        </button>
+                                    </div>
+                                </div>
+                                <div style={styles.chartContainer}>
+                                    <canvas 
+                                        ref={canvasRef} 
+                                        style={{ width: '100%', height: '100%', cursor: 'crosshair' }}
+                                        onMouseMove={handleCanvasMouseMove}
+                                        onMouseLeave={() => setTooltipInfo(null)}
+                                    ></canvas>
+                                    {tooltipInfo && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            left: tooltipInfo.x + 15,
+                                            top: tooltipInfo.y - 15,
+                                            background: 'rgba(15, 23, 42, 0.95)',
+                                            border: '1px solid rgba(255,255,255,0.2)',
+                                            padding: '8px 12px',
+                                            borderRadius: '6px',
+                                            pointerEvents: 'none',
+                                            fontSize: '0.85rem',
+                                            zIndex: 100,
+                                            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                                            whiteSpace: 'nowrap'
+                                        }}>
+                                            <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Level: <strong style={{ color: 'white' }}>{tooltipInfo.level} mm</strong></div>
+                                            <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Δ Volume: <strong style={{ color: '#ef4444' }}>{formatVolume(tooltipInfo.delta)} KL/mm</strong></div>
+                                            <div style={{ color: '#94a3b8' }}>Total Vol: <strong style={{ color: '#10b981' }}>{formatVolume(tooltipInfo.volume)}</strong></div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Main Table Panel */}
+                            <div style={styles.glassPanel}>
+                                <div style={styles.toolbar}>
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                        <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Nama Tangki:</span>
+                                        <input 
+                                            type="text" 
+                                            placeholder="31T003..." 
+                                            style={{ ...styles.searchBox, maxWidth: '100px', padding: '0.5rem 0.75rem' }}
+                                            value={tankName}
+                                            onChange={(e) => setTankName(e.target.value)}
+                                        />
+                                    </div>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Cari..." 
+                                        style={{ ...styles.searchBox, maxWidth: '180px', padding: '0.5rem 0.75rem' }}
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                    />
+                                    <button style={styles.btnExport} onClick={handleExport}>
+                                        Export to Excel (XLSX)
+                                    </button>
+                                </div>
+
+                                <div style={styles.tableContainer}>
+                                    <table style={styles.table}>
+                                        <thead>
+                                            <tr>
+                                                <th style={styles.th}>Level (mm)</th>
+                                                <th style={styles.th}>Level Strapping (cm)</th>
+                                                <th style={styles.th}>Level Fraction (mm)</th>
+                                                <th style={styles.th}>Vol Strapping (L)</th>
+                                                <th style={styles.th}>Vol Fraction (L)</th>
+                                                <th style={styles.th}>Total Volume (L)</th>
+                                                <th style={styles.th}>Delta Volume (L)</th>
+                                                <th style={styles.th}>No Cincin</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredData.length === 0 && (
+                                                <tr><td colSpan="8" style={styles.tdCenter}>Data tidak ditemukan.</td></tr>
+                                            )}
+                                            {filteredData.slice(0, 300).map((row, idx) => (
+                                                <tr key={idx} style={styles.tr}>
+                                                    <td style={styles.td}>{row.level_mm}</td>
+                                                    <td style={styles.td}>{row.cm}</td>
+                                                    <td style={styles.td}>{row.mm}</td>
+                                                    <td style={styles.td}>{formatVolume(row.baseVolume)}</td>
+                                                    <td style={styles.td}>{formatVolume(row.addVol)}</td>
+                                                    <td style={styles.tdSuccess}>{formatVolume(row.totalVolume)}</td>
+                                                    <td style={styles.td}>{formatVolume(row.delta)}</td>
+                                                    <td style={{ ...styles.td, textAlign: 'center' }}>{row.cincin}</td>
+                                                </tr>
+                                            ))}
+                                            {filteredData.length > 300 && (
+                                                <tr>
+                                                    <td colSpan="8" style={styles.tdCenter}>
+                                                        Menampilkan 300 dari total {filteredData.length} baris.<br/>
+                                                        <em style={{opacity:0.7}}>Gunakan kotak pencarian di atas untuk mencari angka spesifik.</em>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }
 
 const styles = {
+    layoutGrid: {
+        display: 'grid',
+        gridTemplateColumns: '350px 1fr',
+        gap: '1.5rem',
+        maxWidth: '1400px',
+        marginLeft: 'auto',
+        marginRight: 'auto',
+    },
+    leftCol: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1.5rem',
+    },
+    rightCol: {
+        minWidth: 0,
+    },
+    glassPanelCompact: {
+        background: 'rgba(30, 41, 59, 0.7)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        borderRadius: '12px',
+        padding: '1.25rem',
+        boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+    },
+    panelTitle: {
+        color: '#f8fafc',
+        fontSize: '1.1rem',
+        fontWeight: '600',
+        marginTop: 0,
+        marginBottom: '1rem',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        paddingBottom: '0.5rem',
+    },
+    uploadGridCompact: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1rem',
+        marginBottom: '1rem',
+    },
+    fileDropCompact: {
+        border: '2px dashed rgba(255, 255, 255, 0.15)',
+        borderRadius: '8px',
+        padding: '1rem',
+        textAlign: 'center',
+        transition: 'all 0.3s ease',
+        cursor: 'pointer',
+        position: 'relative',
+        background: 'rgba(255,255,255,0.01)',
+    },
+    fileLabelCompact: {
+        fontWeight: '600',
+        fontSize: '0.9rem',
+        display: 'block',
+        pointerEvents: 'none',
+        color: '#f8fafc',
+    },
+    fileHintCompact: {
+        fontSize: '0.75rem',
+        color: '#94a3b8',
+        margin: '0.25rem 0 0 0',
+        pointerEvents: 'none',
+    },
+    fileStatusCompact: {
+        fontSize: '0.75rem',
+        marginTop: '0.5rem',
+        pointerEvents: 'none',
+        fontWeight: '500',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+    },
+    previewTitlePrimary: {
+        color: '#60a5fa',
+        fontSize: '0.85rem',
+        fontWeight: '600',
+        marginTop: 0,
+        marginBottom: '0.5rem',
+    },
+    previewTitleSuccess: {
+        color: '#10b981',
+        fontSize: '0.85rem',
+        fontWeight: '600',
+        marginTop: 0,
+        marginBottom: '0.5rem',
+    },
+    welcomePanel: {
+        background: 'rgba(30, 41, 59, 0.4)',
+        border: '1px dashed rgba(255, 255, 255, 0.1)',
+        borderRadius: '16px',
+        padding: '3rem 2rem',
+        textAlign: 'center',
+    },
     container: {
         fontFamily: '"Inter", sans-serif',
         background: 'linear-gradient(135deg, #0f172a 0%, #020617 100%)',

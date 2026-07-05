@@ -114,88 +114,148 @@
             border-bottom: 1px solid rgba(255,255,255,0.05);
         }
 
-        @media (max-width: 900px) { .upload-grid, .content-grid { grid-template-columns: 1fr; } }
+
+        .layout-grid {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 1.5rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .left-col {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .right-col {
+            min-width: 0;
+        }
+        .glass-panel-compact {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+        .panel-title {
+            color: var(--text-main);
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 0;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+        .upload-grid-compact {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .file-drop-compact {
+            border: 2px dashed rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            background: rgba(255,255,255,0.01);
+        }
+        .file-label-compact {
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: block;
+            pointer-events: none;
+            color: var(--text-main);
+        }
+        .file-hint-compact {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin: 0.25rem 0 0 0;
+            pointer-events: none;
+        }
+        .file-status-compact {
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+            pointer-events: none;
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .preview-title-primary {
+            color: var(--primary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+        }
+        .preview-title-success {
+            color: var(--success);
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+        }
+        .welcome-panel {
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px dashed var(--border);
+            border-radius: 16px;
+            padding: 3rem 2rem;
+            text-align: center;
+        }
+
+        @media (max-width: 900px) { .layout-grid { grid-template-columns: 1fr; } }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
+
 <div class="container">
     <header>
         <h1>Strapping & Fraction Combiner</h1>
-        <p>Deteksi anomali data melalui grafik Tank Silhouette.</p>
+        <p>Verifikasi Level vs Volume Tanki ROAS</p>
     </header>
 
-    <div class="glass-panel">
-        <div class="upload-grid">
-            <div class="file-drop" id="drop-strapping">
-                <span class="file-label">📁 1. Drop / Pilih File Strapping (CSV)</span>
-                <p style="font-size: 0.85rem; margin:0;">Format: Tinggi(cm);Volume</p>
-                <input type="file" id="file-strapping" accept=".csv" />
-                <div class="file-status" id="status-strapping">Belum ada file.</div>
-            </div>
+    <div class="layout-grid">
+        <!-- LEFT COLUMN: Upload & Preview -->
+        <div class="left-col">
+            <div class="glass-panel-compact">
+                <h3 class="panel-title">📂 Upload Files</h3>
+                <div class="upload-grid-compact">
+                    <div class="file-drop-compact" id="drop-strapping">
+                        <span class="file-label-compact">📁 1. Strapping File (CSV)</span>
+                        <p class="file-hint-compact">Format: Tinggi(cm);Volume</p>
+                        <input type="file" id="file-strapping" accept=".csv" style="position: absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;" />
+                        <div class="file-status-compact" id="status-strapping" style="color: var(--text-muted);">Belum ada file.</div>
+                    </div>
 
-            <div class="file-drop" id="drop-fraction">
-                <span class="file-label">📁 2. Drop / Pilih File Fraction (XLS)</span>
-                <p style="font-size: 0.85rem; margin:0;">Format: Export HTML (dari;sampai;tinggi;volume)</p>
-                <input type="file" id="file-fraction" accept=".xls,.xlsx,.html,.htm" />
-                <div class="file-status" id="status-fraction">Belum ada file.</div>
-            </div>
-        </div>
-        
-        <div class="progress-text" id="progress-text">Mempersiapkan...</div>
-        <div class="progress-container" id="progress-container">
-            <div class="progress-bar" id="progress-bar"></div>
-        </div>
-
-        <button id="btn-process" class="btn-process" disabled>Proses & Gabungkan Data</button>
-    </div>
-
-    <div id="results-area" class="glass-panel">
-        <div class="toolbar">
-            <input type="text" id="search-box" class="search-box" placeholder="Cari Level (mm) atau Volume...">
-            
-            <button id="btn-export" class="btn-export">Export to Excel (XLSX)</button>
-        </div>
-
-        <div class="content-grid">
-            <div class="table-container">
-                <table id="result-table">
-                    <thead>
-                        <tr>
-                            <th>Level (mm)</th>
-                            <th>Level Strapping (cm)</th>
-                            <th>Level Fraction (mm)</th>
-                            <th>Vol Strapping (L)</th>
-                            <th>Vol Fraction (L)</th>
-                            <th>Total Volume (L)</th>
-                            <th>Delta Volume (L)</th>
-                            <th>No Cincin</th>
-                        </tr>
-                    </thead>
-                    <tbody id="table-body"></tbody>
-                </table>
-            </div>
-            
-            <div class="chart-wrapper">
-                <div class="chart-controls">
-                    <button class="btn-mode active" id="btn-normal">Mode Normal</button>
-                    <button class="btn-mode" id="btn-zoom">🔍 Mode Kaca Pembesar</button>
+                    <div class="file-drop-compact" id="drop-fraction">
+                        <span class="file-label-compact">📁 2. Fraction File (XLS/HTML)</span>
+                        <p class="file-hint-compact">Format: HTML (dari;sampai;tinggi;volume)</p>
+                        <input type="file" id="file-fraction" accept=".xls,.xlsx,.html,.htm" style="position: absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;" />
+                        <div class="file-status-compact" id="status-fraction" style="color: var(--text-muted);">Belum ada file.</div>
+                    </div>
                 </div>
-                <div class="chart-container" id="chart-container">
-                    <canvas id="volumeChart" style="width: 100%; height: 100%; cursor: crosshair;"></canvas>
-                    <div id="chart-tooltip"></div>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <div id="preview-area" class="glass-panel" style="display: none;">
-        <h3 style="color: var(--text-main); margin-bottom: 1.2rem; font-weight: 600; font-size: 1.2rem;">📄 Preview Data Input</h3>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
-            <div>
-                <h4 style="color: var(--primary); margin-bottom: 0.5rem; font-size: 0.95rem;">File 1: Data Strapping (5 Baris Pertama)</h4>
-                <div class="table-container-preview">
+                <div class="progress-text" id="progress-text" style="display:none; font-size: 0.8rem; text-align: center; color: var(--text-muted); margin-bottom: 0.25rem;">Mempersiapkan...</div>
+                <div class="progress-container" id="progress-container" style="display:none; height: 6px; margin-bottom: 1rem;">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+
+                <button id="btn-process" class="btn-process" disabled style="padding: 0.75rem;">Proses & Gabungkan</button>
+            </div>
+
+            <!-- Previews -->
+            <div id="preview-area" class="glass-panel-compact" style="display: none;">
+                <h3 class="panel-title">📄 Preview Data Input</h3>
+                
+                <h4 class="preview-title-primary">File 1: Data Strapping</h4>
+                <div class="table-container-preview" style="margin-bottom: 1rem; max-height: 150px;">
                     <table>
                         <thead>
                             <tr>
@@ -206,21 +266,75 @@
                         <tbody id="strapping-preview-body"></tbody>
                     </table>
                 </div>
-            </div>
-            <div>
-                <h4 style="color: var(--success); margin-bottom: 0.5rem; font-size: 0.95rem;">File 2: Data Fraction (5 Baris Pertama)</h4>
-                <div class="table-container-preview">
+
+                <h4 class="preview-title-success">File 2: Data Fraction</h4>
+                <div class="table-container-preview" style="max-height: 150px;">
                     <table>
                         <thead>
                             <tr>
                                 <th class="th-preview">Dari (cm)</th>
                                 <th class="th-preview">Sampai (cm)</th>
-                                <th class="th-preview">Offset (mm)</th>
+                                <th class="th-preview">Offs (mm)</th>
                                 <th class="th-preview">Vol Tambahan</th>
                             </tr>
                         </thead>
                         <tbody id="fraction-preview-body"></tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Chart & Table -->
+        <div class="right-col">
+            <div id="welcome-area" class="welcome-panel">
+                <h3 style="margin: 0 0 0.5rem 0; color: var(--primary);">Unggah berkas untuk memulai</h3>
+                <p style="margin: 0; color: var(--text-muted);">Unggah file strapping (.csv) dan file fraction (.xls/xlsx/html) di sebelah kiri, kemudian klik tombol proses.</p>
+            </div>
+
+            <div id="results-area" style="display: none; display: flex; flex-direction: column; gap: 1.5rem;">
+                <!-- Large Highlight Chart Panel -->
+                <div class="glass-panel" style="margin-bottom: 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 class="panel-title" style="margin: 0; border: none; padding: 0;">📈 Grafik Siluet Tanki (Δ Volume per mm)</h3>
+                        <div class="chart-controls">
+                            <button class="btn-mode active" id="btn-normal">Mode Normal</button>
+                            <button class="btn-mode" id="btn-zoom">🔍 Mode Kaca Pembesar</button>
+                        </div>
+                    </div>
+                    <div class="chart-container" id="chart-container" style="height: 400px;">
+                        <canvas id="volumeChart" style="width: 100%; height: 100%; cursor: crosshair;"></canvas>
+                        <div id="chart-tooltip"></div>
+                    </div>
+                </div>
+
+                <!-- Main Table Panel -->
+                <div class="glass-panel" style="margin-bottom: 0;">
+                    <div class="toolbar">
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <span style="color: var(--text-muted); font-size: 0.9rem;">Nama Tangki:</span>
+                            <input type="text" id="tank-name-box" class="search-box" style="max-width: 100px; padding: 0.5rem 0.75rem;" placeholder="31T003...">
+                        </div>
+                        <input type="text" id="search-box" class="search-box" style="max-width: 180px; padding: 0.5rem 0.75rem;" placeholder="Cari...">
+                        <button id="btn-export" class="btn-export">Export to Excel (XLSX)</button>
+                    </div>
+
+                    <div class="table-container" style="max-height: 400px;">
+                        <table id="result-table">
+                            <thead>
+                                <tr>
+                                    <th>Level (mm)</th>
+                                    <th>Level Strapping (cm)</th>
+                                    <th>Level Fraction (mm)</th>
+                                    <th>Vol Strapping (L)</th>
+                                    <th>Vol Fraction (L)</th>
+                                    <th>Total Volume (L)</th>
+                                    <th>Delta Volume (L)</th>
+                                    <th>No Cincin</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -465,7 +579,8 @@
             await yieldToMain();
             
             combinedData = results;
-            document.getElementById('results-area').style.display = 'block';
+            document.getElementById('welcome-area').style.display = 'none';
+            document.getElementById('results-area').style.display = 'flex';
             
             renderTable(combinedData, "");
             renderChart(combinedData);
