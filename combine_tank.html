@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strapping & Fraction Combiner</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: rgba(30, 41, 59, 0.7);
+            --primary: #3b82f6;
+            --success: #10b981;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, var(--bg) 0%, #020617 100%);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        header { text-align: center; margin-bottom: 2rem; }
+        h1 { font-size: 2.5rem; font-weight: 700; background: linear-gradient(to right, #60a5fa, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem; }
+        p { color: var(--text-muted); }
+
+        .glass-panel {
+            background: var(--surface);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border); border-radius: 16px;
+            padding: 2rem; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1); margin-bottom: 2rem;
+        }
+
+        .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
+        .file-drop {
+            border: 2px dashed var(--border); border-radius: 12px; padding: 2rem; text-align: center;
+            transition: all 0.3s ease; cursor: pointer; position: relative; background: rgba(255,255,255,0.02);
+        }
+        .file-drop.dragover { border-color: var(--primary); background: rgba(59, 130, 246, 0.1); transform: scale(1.02); }
+        .file-drop input[type="file"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+        .file-label { font-weight: 600; display: block; margin-bottom: 0.5rem; pointer-events: none; }
+        .file-status { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.5rem; pointer-events: none; }
+
+        .progress-container { width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; margin-bottom: 1rem; overflow: hidden; display: none; }
+        .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #3b82f6, #10b981); transition: width 0.3s ease; }
+        .progress-text { text-align: center; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem; display: none; }
+
+        .btn-process {
+            width: 100%; padding: 1rem; background: linear-gradient(to right, var(--primary), #2563eb);
+            color: white; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600;
+            cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+        .btn-process:disabled { background: #475569; cursor: not-allowed; box-shadow: none; opacity: 0.7; }
+
+        #results-area { display: none; }
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; gap: 1rem; }
+        .search-box { padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--border); background: rgba(0,0,0,0.2); color: white; width: 300px; outline: none; }
+        .btn-export { padding: 0.75rem 1.5rem; background: var(--success); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+
+        .content-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 1.5rem; }
+        .table-container { height: 600px; overflow-y: auto; border-radius: 8px; border: 1px solid var(--border); background: rgba(0,0,0,0.2); }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th { position: sticky; top: 0; background: #1e293b; padding: 1rem; font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border); z-index: 10; }
+        td { padding: 0.75rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+        .chart-wrapper { display: flex; flexDirection: column; gap: 0.5rem; }
+        .chart-controls { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
+        .btn-mode {
+            flex: 1; padding: 0.5rem; background: rgba(0,0,0,0.3); color: var(--text-muted);
+            border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-weight: 500; transition: all 0.3s;
+        }
+        .btn-mode.active { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border-color: var(--primary); }
+
+        .chart-container {
+            background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px;
+            height: 560px; position: relative; overflow: hidden;
+        }
+
+        #chart-tooltip {
+            position: absolute; display: none; background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(255,255,255,0.2); padding: 8px 12px; border-radius: 6px;
+            pointer-events: none; font-size: 0.85rem; z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5); white-space: nowrap;
+        }
+
+        @media (max-width: 900px) { .upload-grid, .content-grid { grid-template-columns: 1fr; } }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Strapping & Fraction Combiner</h1>
+        <p>Deteksi anomali data melalui grafik Tank Silhouette.</p>
+    </header>
+
+    <div class="glass-panel">
+        <div class="upload-grid">
+            <div class="file-drop" id="drop-strapping">
+                <span class="file-label">📁 1. Drop / Pilih File Strapping (CSV)</span>
+                <p style="font-size: 0.85rem; margin:0;">Format: Tinggi(cm);Volume</p>
+                <input type="file" id="file-strapping" accept=".csv" />
+                <div class="file-status" id="status-strapping">Belum ada file.</div>
+            </div>
+
+            <div class="file-drop" id="drop-fraction">
+                <span class="file-label">📁 2. Drop / Pilih File Fraction (XLS)</span>
+                <p style="font-size: 0.85rem; margin:0;">Format: Export HTML (dari;sampai;tinggi;volume)</p>
+                <input type="file" id="file-fraction" accept=".xls,.xlsx,.html,.htm" />
+                <div class="file-status" id="status-fraction">Belum ada file.</div>
+            </div>
+        </div>
+        
+        <div class="progress-text" id="progress-text">Mempersiapkan...</div>
+        <div class="progress-container" id="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+
+        <button id="btn-process" class="btn-process" disabled>Proses & Gabungkan Data</button>
+    </div>
+
+    <div id="results-area" class="glass-panel">
+        <div class="toolbar">
+            <input type="text" id="search-box" class="search-box" placeholder="Cari Level (mm) atau Volume...">
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <span style="color: var(--text-muted); font-size: 0.9rem;">Nama Tangki:</span>
+                <input type="text" id="tank-name-box" class="search-box" style="max-width: 120px; padding: 0.75rem 1rem;" placeholder="31T003...">
+            </div>
+            <button id="btn-export" class="btn-export">Export to Excel (XLSX)</button>
+        </div>
+
+        <div class="content-grid">
+            <div class="table-container">
+                <table id="result-table">
+                    <thead><tr><th>Level (mm)</th><th>Volume</th></tr></thead>
+                    <tbody id="table-body"></tbody>
+                </table>
+            </div>
+            
+            <div class="chart-wrapper">
+                <div class="chart-controls">
+                    <button class="btn-mode active" id="btn-normal">Mode Normal</button>
+                    <button class="btn-mode" id="btn-zoom">🔍 Mode Kaca Pembesar</button>
+                </div>
+                <div class="chart-container" id="chart-container">
+                    <canvas id="volumeChart" style="width: 100%; height: 100%; cursor: crosshair;"></canvas>
+                    <div id="chart-tooltip"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const formatVolume = (vol) => {
+        const num = typeof vol === 'string' ? parseFloat(vol) : vol;
+        if (isNaN(num)) return vol;
+        return num.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    const formatLevel = (lvl) => {
+        const num = typeof lvl === 'string' ? parseInt(lvl) : lvl;
+        if (isNaN(num)) return lvl;
+        return num.toLocaleString('id-ID');
+    };
+
+    const extractTankName = (fileName) => {
+        const match = fileName.match(/(\d+T\d+|tank\d+|tank_\d+)/i);
+        return match ? match[1] : "";
+    };
+
+    let tankName = "";
+    let strappingRaw = null;
+    let fractionRaw = null;
+    let combinedData = [];
+    let searchTimeout = null;
+    let currentChartMode = 'normal';
+
+    const btnProcess = document.getElementById('btn-process');
+    const progressBar = document.getElementById('progress-bar');
+    const progressContainer = document.getElementById('progress-container');
+    const progressText = document.getElementById('progress-text');
+
+    function setupDragAndDrop(dropId, inputId, statusId, expectedType, callback) {
+        const dropZone = document.getElementById(dropId);
+        const input = document.getElementById(inputId);
+        const status = document.getElementById(statusId);
+
+        const prevent = (e) => { e.preventDefault(); e.stopPropagation(); };
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => dropZone.addEventListener(evt, prevent, false));
+        ['dragenter', 'dragover'].forEach(evt => dropZone.addEventListener(evt, () => dropZone.classList.add('dragover'), false));
+        ['dragleave', 'drop'].forEach(evt => dropZone.addEventListener(evt, () => dropZone.classList.remove('dragover'), false));
+
+        dropZone.addEventListener('drop', (e) => { handleFile(e.dataTransfer.files[0]); });
+        input.addEventListener('change', (e) => { handleFile(e.target.files[0]); });
+
+        function handleFile(file) {
+            if (!file) return;
+            
+            const fileName = file.name.toLowerCase();
+            if (expectedType === 'strapping') {
+                if (!fileName.endsWith('.csv')) {
+                    alert("File Strapping harus berformat CSV (.csv)!");
+                    return;
+                }
+                const detected = extractTankName(file.name);
+                if (detected) {
+                    tankName = detected;
+                    document.getElementById('tank-name-box').value = detected.toUpperCase();
+                }
+            } else if (expectedType === 'fraction') {
+                const allowed = ['.xls', '.xlsx', '.html', '.htm'];
+                const isValid = allowed.some(ext => fileName.endsWith(ext));
+                if (!isValid) {
+                    alert("File Fraction harus berformat Excel atau HTML (.xls, .xlsx, .html)!");
+                    return;
+                }
+                const detected = extractTankName(file.name);
+                if (detected) {
+                    tankName = detected;
+                    document.getElementById('tank-name-box').value = detected.toUpperCase();
+                }
+            }
+
+            status.textContent = `File Siap: ${file.name}`;
+            status.style.color = 'var(--success)';
+            const reader = new FileReader();
+            reader.onload = (ev) => callback(ev.target.result);
+            reader.readAsText(file);
+        }
+    }
+
+    setupDragAndDrop('drop-strapping', 'file-strapping', 'status-strapping', 'strapping', (res) => { strappingRaw = res; checkReady(); });
+    setupDragAndDrop('drop-fraction', 'file-fraction', 'status-fraction', 'fraction', (res) => { fractionRaw = res; checkReady(); });
+
+    function checkReady() { if (strappingRaw && fractionRaw) btnProcess.disabled = false; }
+    const yieldToMain = () => new Promise(resolve => setTimeout(resolve, 15));
+
+    function setProgress(percent, text) {
+        progressContainer.style.display = 'block';
+        progressText.style.display = 'block';
+        progressBar.style.width = percent + '%';
+        progressText.textContent = text;
+    }
+
+    btnProcess.addEventListener('click', async () => {
+        try {
+            btnProcess.disabled = true;
+            document.getElementById('results-area').style.display = 'none';
+
+            setProgress(5, 'Membaca File Strapping...');
+            await yieldToMain();
+            const strappingMap = parseStrapping(strappingRaw);
+
+            if (strappingMap.size === 0) throw new Error("Data Strapping kosong atau format tidak sesuai (Tinggi;Volume).");
+
+            setProgress(15, 'Membaca File Fraction...');
+            await yieldToMain();
+            const { rules: fractionRules, tankNo } = parseFraction(fractionRaw);
+            if (tankNo && !tankName) {
+                tankName = tankNo;
+                document.getElementById('tank-name-box').value = tankNo.toUpperCase();
+            }
+            
+            if (fractionRules.length === 0) {
+                throw new Error("Data Fraction kosong atau format tidak sesuai (dari;sampai;tinggi;volume). Pastikan formatnya benar.");
+            }
+            
+            setProgress(25, 'Mempersiapkan indeks data...');
+            await yieldToMain();
+
+            const fractionLookup = {};
+            fractionRules.forEach(r => {
+                for (let cm = r.minCm; cm <= r.maxCm; cm++) {
+                    if (!fractionLookup[cm]) fractionLookup[cm] = {};
+                    fractionLookup[cm][r.offset_mm] = r.volume_tambahan;
+                }
+            });
+            
+            let minCm = Infinity, maxCm = -Infinity;
+            for (let cm of strappingMap.keys()) {
+                if (cm < minCm) minCm = cm;
+                if (cm > maxCm) maxCm = cm;
+            }
+
+            const results = [];
+            const chunkSize = 40;
+            const totalItems = maxCm - minCm + 1;
+            const totalChunks = Math.ceil(totalItems / chunkSize);
+            const startTime = performance.now();
+
+            for (let i = 0; i < totalChunks; i++) {
+                const startCm = minCm + (i * chunkSize);
+                const endCm = Math.min(startCm + chunkSize - 1, maxCm);
+                
+                for (let cm = startCm; cm <= endCm; cm++) {
+                    if (strappingMap.has(cm)) {
+                        const baseVolume = strappingMap.get(cm);
+                        results.push({ level_mm: cm * 10, volume: baseVolume.toFixed(2) });
+                        
+                        if (cm < maxCm) {
+                            const cmFraction = fractionLookup[cm] || {};
+                            for (let mm = 1; mm <= 9; mm++) {
+                                const addVol = cmFraction[mm] || 0;
+                                const totalVolume = baseVolume + addVol;
+                                results.push({ level_mm: (cm * 10) + mm, volume: totalVolume.toFixed(2) });
+                            }
+                        }
+                    }
+                }
+                
+                const elapsed = (performance.now() - startTime) / 1000;
+                const ratio = (i + 1) / totalChunks;
+                const eta = Math.max(0, (elapsed / ratio) - elapsed);
+                const currentProgress = 25 + Math.round(ratio * 60);
+                
+                setProgress(currentProgress, `Menggabungkan data (${currentProgress}%)... Estimasi sisa waktu: ${eta.toFixed(1)} detik.`);
+                await yieldToMain();
+            }
+
+            setProgress(90, 'Menyiapkan Tampilan Tabel & Grafik...');
+            await yieldToMain();
+            
+            combinedData = results;
+            document.getElementById('results-area').style.display = 'block';
+            
+            renderTable(combinedData, "");
+            renderChart(combinedData);
+            
+            setProgress(100, 'Selesai!');
+            
+            setTimeout(() => {
+                progressContainer.style.display = 'none';
+                progressText.style.display = 'none';
+                btnProcess.disabled = false;
+                btnProcess.textContent = "Proses Ulang Data";
+            }, 800);
+
+        } catch (error) {
+            alert("Kesalahan: " + error.message);
+            progressContainer.style.display = 'none';
+            progressText.style.display = 'none';
+            btnProcess.disabled = false;
+        }
+    });
+
+    function parseStrapping(csvText) {
+        const lines = csvText.split('\n');
+        const map = new Map();
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            const parts = line.split(/[;,]/);
+            if (parts.length >= 2) {
+                const rawCm = parts[0].trim();
+                const rawVol = parts[1].trim();
+                if (/^\d+(\.\d+)?$/.test(rawCm) && /^\d+(\.\d+)?$/.test(rawVol)) {
+                    const cm = parseFloat(rawCm);
+                    const vol = parseFloat(rawVol);
+                    if (cm < 10000) map.set(cm, vol);
+                }
+            }
+        }
+        return map;
+    }
+
+    function parseFraction(htmlText) {
+        const rules = [];
+        let tankNo = "";
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, 'text/html');
+        const rows = doc.querySelectorAll('tr');
+        
+        rows.forEach(row => {
+            const cols = row.querySelectorAll('td, th');
+            if (cols.length >= 6) {
+                const rowTexts = Array.from(cols).map(c => c.innerText.trim().toLowerCase());
+                if (rowTexts.includes('dari')) return;
+                
+                let dariStr = cols[2].innerText.trim();
+                let sampaiStr = cols[3].innerText.trim();
+                let tinggiStr = cols[4].innerText.trim();
+                let volStr = cols[5].innerText.trim();
+                
+                const dari = parseFloat(dariStr.replace(/,/g, ''));
+                const sampai = parseFloat(sampaiStr.replace(/,/g, ''));
+                const tinggi = parseInt(tinggiStr.replace(/,/g, ''));
+                const vol = parseFloat(volStr.replace(/,/g, ''));
+                
+                if (!isNaN(dari) && !isNaN(sampai) && !isNaN(tinggi) && !isNaN(vol)) {
+                    const minCm = Math.ceil(dari); 
+                    const maxCm = Math.floor(sampai);
+                    rules.push({ minCm, maxCm, offset_mm: tinggi, volume_tambahan: vol });
+                    
+                    if (!tankNo && cols[1]) {
+                        const candidate = cols[1].innerText.trim();
+                        if (candidate && candidate.toLowerCase() !== 'tank_no') {
+                            tankNo = candidate;
+                        }
+                    }
+                }
+            }
+        });
+        return { rules, tankNo };
+    }
+
+    function renderTable(data, query = "") {
+        const tbody = document.getElementById('table-body');
+        let filtered = data;
+        
+        if (query) {
+            const q = query.toLowerCase();
+            filtered = data.filter(d => {
+                const formattedVol = formatVolume(d.volume);
+                const formattedLvl = formatLevel(d.level_mm);
+                return d.level_mm.toString().includes(q) || 
+                       d.volume.toString().includes(q) ||
+                       formattedVol.includes(q) ||
+                       formattedLvl.includes(q);
+            });
+        }
+
+        const renderLimit = 300;
+        let html = '';
+        for (let i = 0; i < Math.min(filtered.length, renderLimit); i++) {
+            html += `<tr>
+                <td style="font-family: monospace; font-weight: 500;">${formatLevel(filtered[i].level_mm)}</td>
+                <td style="font-family: monospace; color: var(--success); font-weight: 600;">${formatVolume(filtered[i].volume)}</td>
+            </tr>`;
+        }
+        
+        if (filtered.length > renderLimit) {
+            html += `<tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+                Menampilkan ${renderLimit} dari total ${filtered.length} baris.<br>
+                <em>Gunakan kotak pencarian di atas untuk mencari angka spesifik.</em>
+            </td></tr>`;
+        } else if (filtered.length === 0) {
+            html += `<tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Data tidak ditemukan.</td></tr>`;
+        }
+        
+        tbody.innerHTML = html;
+    }
+
+    document.getElementById('search-box').addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        const q = e.target.value.trim();
+        searchTimeout = setTimeout(() => { renderTable(combinedData, q); }, 300);
+    });
+
+    document.getElementById('tank-name-box').addEventListener('input', (e) => {
+        tankName = e.target.value;
+    });
+
+    // --- Custom Canvas Chart ---
+    const canvas = document.getElementById('volumeChart');
+    const tooltip = document.getElementById('chart-tooltip');
+    
+    document.getElementById('btn-normal').addEventListener('click', (e) => {
+        currentChartMode = 'normal';
+        document.getElementById('btn-normal').classList.add('active');
+        document.getElementById('btn-zoom').classList.remove('active');
+        if (combinedData.length) renderChart(combinedData);
+    });
+    document.getElementById('btn-zoom').addEventListener('click', (e) => {
+        currentChartMode = 'zoom';
+        document.getElementById('btn-zoom').classList.add('active');
+        document.getElementById('btn-normal').classList.remove('active');
+        if (combinedData.length) renderChart(combinedData);
+    });
+
+    function renderChart(data) {
+        if (!canvas || data.length < 2) return;
+        const ctx = canvas.getContext('2d');
+        const width = canvas.parentElement.offsetWidth;
+        const height = canvas.parentElement.offsetHeight;
+        
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, width, height);
+
+        const deltaData = [];
+        let sumDelta = 0;
+        for (let i = 1; i < data.length; i++) {
+            const dV = parseFloat(data[i].volume) - parseFloat(data[i-1].volume);
+            deltaData.push({ level_mm: data[i].level_mm, delta_vol: dV });
+            sumDelta += dV;
+        }
+        
+        const avgDelta = sumDelta / deltaData.length;
+        // Detect anomalies (>2% deviation from average)
+        deltaData.forEach(d => { d.isAnomaly = Math.abs(d.delta_vol - avgDelta) / avgDelta > 0.02; });
+
+        const maxDelta = Math.max(...deltaData.map(d => d.delta_vol));
+        let minDeltaDraw = 0;
+        let maxDeltaDraw = maxDelta;
+
+        if (currentChartMode === 'zoom') {
+            const minD = Math.min(...deltaData.map(d => d.delta_vol));
+            const range = maxDelta - minD;
+            minDeltaDraw = Math.max(0, minD - range * 0.1); 
+        }
+
+        const deltaRange = maxDeltaDraw - minDeltaDraw;
+
+        const minLevel = deltaData[0].level_mm;
+        const maxLevel = deltaData[deltaData.length - 1].level_mm;
+        const paddingY = 40;
+        const paddingX = 40;
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px Inter';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+
+        const lines = 10;
+        for(let i=0; i<=lines; i++) {
+            const y = height - paddingY - (i / lines) * (height - paddingY * 2);
+            const lblLevel = Math.round(minLevel + (i / lines) * (maxLevel - minLevel));
+            ctx.beginPath(); ctx.moveTo(paddingX, y); ctx.lineTo(width - paddingX, y); ctx.stroke();
+            ctx.fillText(lblLevel + 'mm', paddingX - 10, y);
+        }
+
+        ctx.textAlign = 'center';
+        ctx.fillText("Tank Silhouette (Δ Volume per mm)", width/2, 15);
+
+        const halfW = (width - paddingX * 2) / 2;
+        const getY = (level) => height - paddingY - ((level - minLevel) / (maxLevel - minLevel)) * (height - paddingY * 2);
+        const getXOffset = (delta) => {
+            if (delta < minDeltaDraw) return 0;
+            return ((delta - minDeltaDraw) / deltaRange) * halfW;
+        };
+
+        // Base tank (normal data)
+        ctx.beginPath();
+        const fillGradient = ctx.createLinearGradient(0, height, 0, 0);
+        fillGradient.addColorStop(0, 'rgba(16, 185, 129, 0.4)');
+        fillGradient.addColorStop(1, 'rgba(59, 130, 246, 0.4)');
+        ctx.fillStyle = fillGradient;
+        ctx.strokeStyle = '#60a5fa';
+        ctx.lineWidth = 1.5;
+
+        ctx.moveTo(width / 2, getY(minLevel));
+        deltaData.forEach(d => {
+            if (!d.isAnomaly) ctx.lineTo(width / 2 - getXOffset(d.delta_vol), Math.max(paddingY, Math.min(height - paddingY, getY(d.level_mm))));
+        });
+        for (let i = deltaData.length - 1; i >= 0; i--) {
+            if (!deltaData[i].isAnomaly) ctx.lineTo(width / 2 + getXOffset(deltaData[i].delta_vol), Math.max(paddingY, Math.min(height - paddingY, getY(deltaData[i].level_mm))));
+        }
+
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Draw Anomalies (Red Spikes)
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.8)';
+        ctx.strokeStyle = '#f87171';
+        deltaData.forEach((d) => {
+            if (d.isAnomaly) {
+                const y = Math.max(paddingY, Math.min(height - paddingY, getY(d.level_mm)));
+                const offset = getXOffset(d.delta_vol);
+                ctx.beginPath();
+                ctx.rect(width / 2 - offset, y - 1.5, offset * 2, 3);
+                ctx.fill();
+                ctx.stroke();
+            }
+        });
+
+        // Center dashed line
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.setLineDash([5, 5]);
+        ctx.moveTo(width / 2, height - paddingY);
+        ctx.lineTo(width / 2, paddingY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    canvas.addEventListener('mousemove', (e) => {
+        if (combinedData.length < 2) return;
+        const rect = canvas.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        
+        const height = canvas.offsetHeight;
+        const paddingY = 40;
+        const minLevel = combinedData[1].level_mm;
+        const maxLevel = combinedData[combinedData.length - 1].level_mm;
+        
+        if (y < paddingY || y > height - paddingY) {
+            tooltip.style.display = 'none';
+            return;
+        }
+
+        const ratio = (height - paddingY - y) / (height - paddingY * 2);
+        const hoverLevel = minLevel + ratio * (maxLevel - minLevel);
+        
+        let left = 1;
+        let right = combinedData.length - 1;
+        let bestIdx = 1;
+        
+        while (left <= right) {
+            const mid = Math.floor((left + right) / 2);
+            if (combinedData[mid].level_mm === Math.round(hoverLevel)) {
+                bestIdx = mid; break;
+            } else if (combinedData[mid].level_mm < hoverLevel) {
+                bestIdx = mid; left = mid + 1;
+            } else {
+                right = mid - 1;
+            }
+        }
+        
+        const delta = parseFloat(combinedData[bestIdx].volume) - parseFloat(combinedData[bestIdx - 1].volume);
+        
+        tooltip.innerHTML = `
+            <div style="color: #94a3b8; margin-bottom: 4px;">Level: <strong style="color: white;">${combinedData[bestIdx].level_mm} mm</strong></div>
+            <div style="color: #94a3b8; margin-bottom: 4px;">Δ Volume: <strong style="color: #ef4444;">${formatVolume(delta.toFixed(2))} KL/mm</strong></div>
+            <div style="color: #94a3b8;">Total Vol: <strong style="color: #10b981;">${formatVolume(combinedData[bestIdx].volume)}</strong></div>
+        `;
+        
+        tooltip.style.display = 'block';
+        tooltip.style.left = (e.clientX - rect.left + 15) + 'px';
+        tooltip.style.top = (e.clientY - rect.top - 15) + 'px';
+    });
+
+    canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+    window.addEventListener('resize', () => { if (combinedData.length) renderChart(combinedData); });
+
+    document.getElementById('btn-export').addEventListener('click', () => {
+        if (combinedData.length === 0) return;
+        
+        const data = [
+            [`DATA ROAS TANGKI ${tankName ? tankName.toUpperCase() : '...'} LEVEL VS VOLUME`, ''],
+            [],
+            ['Level (mm)', 'Volume']
+        ];
+        
+        combinedData.forEach(r => {
+            data.push([parseInt(r.level_mm), parseFloat(r.volume)]);
+        });
+        
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        
+        ws['!merges'] = [
+            { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }
+        ];
+        
+        // Format columns
+        for (let r = 3; r < data.length; r++) {
+            const levelCellRef = XLSX.utils.encode_cell({ r, c: 0 });
+            const volumeCellRef = XLSX.utils.encode_cell({ r, c: 1 });
+            
+            if (ws[levelCellRef]) {
+                ws[levelCellRef].z = '#,##0';
+            }
+            if (ws[volumeCellRef]) {
+                ws[volumeCellRef].z = '#,##0.00';
+            }
+        }
+        
+        XLSX.utils.book_append_sheet(wb, ws, 'Combined Data');
+        XLSX.writeFile(wb, `Combined_Strapping_Tank_${tankName || 'Full'}_MM.xlsx`);
+    });
+</script>
+</body>
+</html>
