@@ -100,6 +100,7 @@ export default function CombineTank() {
     const parseStrapping = (csvText) => {
         const lines = csvText.split('\n');
         const map = new Map();
+        let lastCm = -1;
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
             if (!line) continue;
@@ -111,7 +112,10 @@ export default function CombineTank() {
                 if (/^\d+(\.\d+)?$/.test(rawCm) && /^\d+(\.\d+)?$/.test(rawVol)) {
                     const cm = parseFloat(rawCm);
                     const vol = parseFloat(rawVol);
-                    if (cm < 10000) { map.set(cm, vol); }
+                    if (cm < 10000 && cm > lastCm) {
+                        map.set(cm, vol);
+                        lastCm = cm;
+                    }
                 }
             }
         }
