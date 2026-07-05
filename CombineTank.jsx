@@ -421,7 +421,7 @@ export default function CombineTank() {
         const paddingY = 40;
         const paddingX = 40;
 
-        // Grid lines
+        // Grid lines Y (Level)
         ctx.strokeStyle = 'rgba(255,255,255,0.05)';
         ctx.fillStyle = '#94a3b8';
         ctx.font = '10px Inter';
@@ -439,18 +439,64 @@ export default function CombineTank() {
             ctx.fillText(lblLevel + 'mm', paddingX - 10, y);
         }
 
-        // Title
-        ctx.textAlign = 'center';
-        ctx.fillText("Tank Silhouette (Δ Volume per mm)", width/2, 15);
-
-        // Draw Tank Silhouette
         const halfW = (width - paddingX * 2) / 2;
-        const getY = (level) => height - paddingY - ((level - minLevel) / (maxLevel - minLevel)) * (height - paddingY * 2);
         
         const getXOffset = (delta) => {
             if (delta < minDeltaDraw) return 0;
             return ((delta - minDeltaDraw) / deltaRange) * halfW;
         };
+
+        // Grid lines X (Delta Volume)
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillStyle = '#64748b';
+        const xLines = 4;
+        for(let i=0; i<=xLines; i++) {
+            const val = minDeltaDraw + (i / xLines) * deltaRange;
+            const offset = (i / xLines) * halfW;
+            
+            ctx.beginPath();
+            ctx.moveTo(width / 2 - offset, paddingY);
+            ctx.lineTo(width / 2 - offset, height - paddingY);
+            if (i > 0) {
+                ctx.moveTo(width / 2 + offset, paddingY);
+                ctx.lineTo(width / 2 + offset, height - paddingY);
+            }
+            ctx.stroke();
+
+            const lbl = val.toFixed(1);
+            ctx.fillText(lbl, width / 2 - offset, height - paddingY + 15);
+            if (i > 0) ctx.fillText(lbl, width / 2 + offset, height - paddingY + 15);
+        }
+
+        // Draw Average Line (Ideal Cylinder)
+        const avgOffset = getXOffset(avgDelta);
+        if (avgOffset > 0) {
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(234, 179, 8, 0.5)'; // yellow-500
+            ctx.setLineDash([4, 4]);
+            ctx.lineWidth = 1;
+            ctx.moveTo(width / 2 - avgOffset, paddingY);
+            ctx.lineTo(width / 2 - avgOffset, height - paddingY);
+            ctx.moveTo(width / 2 + avgOffset, paddingY);
+            ctx.lineTo(width / 2 + avgOffset, height - paddingY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            ctx.fillStyle = '#eab308';
+            ctx.fillText(`Rata-rata: ${avgDelta.toFixed(1)} L`, width / 2, paddingY - 10);
+        }
+
+        // Title
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = 'bold 12px Inter';
+        ctx.fillText("Bentuk Dinding Tangki (Δ Volume per mm)", width/2, 10);
+        
+        const getY = (level) => height - paddingY - ((level - minLevel) / (maxLevel - minLevel)) * (height - paddingY * 2);
+
+        // Draw Tank Silhouette
 
         // Base tank (normal data)
         ctx.beginPath();
@@ -580,7 +626,7 @@ export default function CombineTank() {
                         color: '#60a5fa',
                         fontWeight: '500'
                     }}>
-                        v1.3.0
+                        v1.4.0
                     </span>
                 </h1>
                 <p style={styles.subtitle}>Verifikasi Level vs Volume Tanki ROAS</p>
@@ -775,13 +821,25 @@ export default function CombineTank() {
                                         onMouseLeave={() => setTooltipInfo(null)}
                                     ></canvas>
                                     {tooltipInfo && (
-                                        <div style={{
-                                            position: 'absolute',
-                                            left: tooltipInfo.x + 15,
-                                            top: tooltipInfo.y - 15,
-                                            background: 'rgba(15, 23, 42, 0.95)',
-                                            border: '1px solid rgba(255,255,255,0.2)',
-                                            padding: '8px 12px',
+                                        <>
+                                            <div style={{
+                                                position: 'absolute',
+                                                top: tooltipInfo.y,
+                                                left: 0,
+                                                width: '100%',
+                                                height: '1px',
+                                                background: 'rgba(239, 68, 68, 0.6)',
+                                                pointerEvents: 'none',
+                                                zIndex: 10,
+                                                boxShadow: '0 0 4px rgba(239, 68, 68, 0.5)'
+                                            }} />
+                                            <div style={{
+                                                position: 'absolute',
+                                                left: tooltipInfo.x + 15,
+                                                top: tooltipInfo.y - 15,
+                                                background: 'rgba(15, 23, 42, 0.95)',
+                                                border: '1px solid rgba(255,255,255,0.2)',
+                                                padding: '8px 12px',
                                             borderRadius: '6px',
                                             pointerEvents: 'none',
                                             fontSize: '0.85rem',
@@ -793,6 +851,7 @@ export default function CombineTank() {
                                             <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Δ Volume: <strong style={{ color: '#ef4444' }}>{formatVolume(tooltipInfo.delta)} KL/mm</strong></div>
                                             <div style={{ color: '#94a3b8' }}>Total Vol: <strong style={{ color: '#10b981' }}>{formatVolume(tooltipInfo.volume)}</strong></div>
                                         </div>
+                                        </>
                                     )}
                                 </div>
                             </div>
