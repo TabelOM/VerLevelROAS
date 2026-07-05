@@ -37,6 +37,13 @@ export default function CombineTank() {
     const [tooltipInfo, setTooltipInfo] = useState(null);
     const [chartMode, setChartMode] = useState('normal'); // 'normal' | 'zoom'
     
+    // Interactive Zoom states
+    const [zoomScaleY, setZoomScaleY] = useState(1);
+    const [scrollYOffset, setScrollYOffset] = useState(0); 
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStartMouseY, setDragStartMouseY] = useState(0);
+    const [dragStartScrollY, setDragStartScrollY] = useState(0);
+
     const canvasRef = useRef(null);
 
     const extractTankName = (fileName) => {
@@ -373,6 +380,27 @@ export default function CombineTank() {
         });
     }, [combinedData, searchQuery]);
 
+    const anomalyData = useMemo(() => {
+        if (combinedData.length < 2) return [];
+        const deltaData = combinedData.slice(1).map((d, i) => {
+            const prev = combinedData[i];
+            return { level_mm: d.level_mm, delta_vol: d.totalVolume - prev.totalVolume };
+        }).filter(d => d.delta_vol > 0);
+        if (deltaData.length === 0) return [];
+        
+        const sumDelta = deltaData.reduce((acc, curr) => acc + curr.delta_vol, 0);
+        const avgDelta = sumDelta / deltaData.length;
+        
+        return deltaData.filter(d => {
+            const devRatio = Math.abs(d.delta_vol - avgDelta) / (avgDelta || 1);
+            const devAbs = Math.abs(d.delta_vol - avgDelta);
+            return devRatio > 0.15 && devAbs > 50;
+        }).map(d => ({
+            ...d,
+            devRatio: Math.abs(d.delta_vol - avgDelta) / (avgDelta || 1)
+        }));
+    }, [combinedData]);
+
     const drawChart = useCallback(() => {
         const canvas = canvasRef.current;
         if (!canvas || combinedData.length < 2) return;
@@ -404,27 +432,44 @@ export default function CombineTank() {
             d.isAnomaly = devRatio > 0.15 && devAbs > 50; 
         });
 
-        const maxDelta = Math.max(...deltaData.map(d => d.delta_vol));
-        const minDelta = Math.min(...deltaData.map(d => d.delta_vol));
+        const trueMinLevel = deltaData[0].level_mm;
+        const trueMaxLevel = deltaData[deltaData.length - 1].level_mm;
         
-        let minDeltaDraw = 0;
-        let maxDeltaDraw = maxDelta;
+        let minLevel = trueMinLevel;
+        let maxLevel = trueMaxLevel;
 
         if (chartMode === 'zoom') {
-            const normalData = deltaData.filter(d => !d.isAnomaly);
+            const visibleRange = (trueMaxLevel - trueMinLevel) / zoomScaleY;
+            const maxScroll = (trueMaxLevel - trueMinLevel) - visibleRange;
+            const clampedScroll = Math.max(0, Math.min(scrollYOffset, maxScroll));
+            
+            minLevel = trueMinLevel + clampedScroll;
+            maxLevel = minLevel + visibleRange;
+        }
+
+        // Calculate dynamic X bounds based ONLY on visible vertical range
+        const visibleDeltaData = deltaData.filter(d => d.level_mm >= minLevel && d.level_mm <= maxLevel);
+        const dataForXBounds = visibleDeltaData.length > 0 ? visibleDeltaData : deltaData;
+        
+        let minDeltaDraw = 0;
+        let maxDeltaDraw = Math.max(...dataForXBounds.map(d => d.delta_vol));
+
+        if (chartMode === 'zoom') {
+            const normalData = dataForXBounds.filter(d => !d.isAnomaly);
             if (normalData.length > 0) {
                 const normalMax = Math.max(...normalData.map(d => d.delta_vol));
                 const normalMin = Math.min(...normalData.map(d => d.delta_vol));
                 const range = normalMax - normalMin;
                 minDeltaDraw = Math.max(0, normalMin - range * 0.1); 
                 maxDeltaDraw = normalMax + range * 0.1;
+            } else {
+                const fallbackMin = Math.min(...dataForXBounds.map(d => d.delta_vol));
+                const range = maxDeltaDraw - fallbackMin;
+                minDeltaDraw = Math.max(0, fallbackMin - range * 0.1);
             }
         }
 
         const deltaRange = maxDeltaDraw - minDeltaDraw || 1;
-
-        const minLevel = deltaData[0].level_mm;
-        const maxLevel = deltaData[deltaData.length - 1].level_mm;
         const paddingY = 45;
         const paddingX = 80;
 
@@ -526,19 +571,21 @@ export default function CombineTank() {
         ctx.fill();
         ctx.stroke();
 
-        // Draw Anomalies (Red Spikes)
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.8)'; // Red
-        ctx.strokeStyle = '#f87171'; // Lighter red
-        deltaData.forEach((d, i) => {
+        // Draw Anomalies (Warning Markers)
+        ctx.fillStyle = '#ef4444'; // Red
+        deltaData.forEach((d) => {
             if (d.isAnomaly) {
                 const y = Math.max(paddingY, Math.min(height - paddingY, getY(d.level_mm)));
-                const offset = getXOffset(d.delta_vol);
-                const rectHeight = 3; // make it slightly thick to be visible
-                
+                // Draw a small red dot/marker near the Y axis
                 ctx.beginPath();
-                // Draw line across the entire width of the tank at that level
-                ctx.rect(width / 2 - offset, y - rectHeight/2, offset * 2, rectHeight);
+                ctx.arc(paddingX - 40, y, 4, 0, Math.PI * 2);
                 ctx.fill();
+                
+                // Draw a subtle line across the tank instead of a thick red spike
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(239, 68, 68, 0.15)';
+                ctx.moveTo(paddingX, y);
+                ctx.lineTo(width - paddingX, y);
                 ctx.stroke();
             }
         });
@@ -552,7 +599,7 @@ export default function CombineTank() {
         ctx.stroke();
         ctx.setLineDash([]);
 
-    }, [combinedData, chartMode]);
+    }, [combinedData, chartMode, zoomScaleY, scrollYOffset]);
 
     useEffect(() => {
         if (combinedData.length > 0 && !isProcessing) {
@@ -571,13 +618,33 @@ export default function CombineTank() {
         }
     };
 
+    const handleWheel = (e) => {
+        if (chartMode !== 'zoom') return;
+        e.preventDefault();
+        
+        const zoomSensitivity = 0.002;
+        let newZoom = zoomScaleY * (1 - e.deltaY * zoomSensitivity);
+        newZoom = Math.max(1, Math.min(newZoom, 50)); 
+        setZoomScaleY(newZoom);
+    };
+
+    const handleMouseDown = (e) => {
+        if (chartMode !== 'zoom') return;
+        setIsDragging(true);
+        setDragStartMouseY(e.clientY);
+        setDragStartScrollY(scrollYOffset);
+    };
+
+    const handleMouseUp = () => setIsDragging(false);
+
+    const handleMouseLeave = () => {
+        setIsDragging(false);
+        setTooltipInfo(null);
+    };
+
     const handleCanvasMouseMove = (e) => {
         if (combinedData.length < 2) return;
-        const rect = canvasRef.current.getBoundingClientRect();
-        const y = e.clientY - rect.top;
         
-        const height = canvasRef.current.offsetHeight;
-        const paddingY = 40;
         const deltaData = combinedData.slice(1).map((d, i) => {
             const prev = combinedData[i];
             return { level_mm: d.level_mm, delta_vol: d.totalVolume - prev.totalVolume };
@@ -588,8 +655,37 @@ export default function CombineTank() {
             return;
         }
 
-        const minLevel = deltaData[0].level_mm;
-        const maxLevel = deltaData[deltaData.length - 1].level_mm;
+        const trueMinLevel = deltaData[0].level_mm;
+        const trueMaxLevel = deltaData[deltaData.length - 1].level_mm;
+        
+        if (isDragging && chartMode === 'zoom') {
+            const dy = e.clientY - dragStartMouseY;
+            const scrollSensitivity = (trueMaxLevel - trueMinLevel) / zoomScaleY / canvasRef.current.offsetHeight;
+            // drag down (dy > 0) means move viewport up (increase scrollY)
+            let newScroll = dragStartScrollY + dy * scrollSensitivity;
+            
+            const visibleRange = (trueMaxLevel - trueMinLevel) / zoomScaleY;
+            const maxScroll = (trueMaxLevel - trueMinLevel) - visibleRange;
+            newScroll = Math.max(0, Math.min(newScroll, maxScroll));
+            setScrollYOffset(newScroll);
+            return; // Don't show tooltip while dragging
+        }
+
+        const rect = canvasRef.current.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        const height = canvasRef.current.offsetHeight;
+        const paddingY = 45; // Match with drawChart
+        
+        let minLevel = trueMinLevel;
+        let maxLevel = trueMaxLevel;
+
+        if (chartMode === 'zoom') {
+            const visibleRange = (trueMaxLevel - trueMinLevel) / zoomScaleY;
+            const maxScroll = (trueMaxLevel - trueMinLevel) - visibleRange;
+            const clampedScroll = Math.max(0, Math.min(scrollYOffset, maxScroll));
+            minLevel = trueMinLevel + clampedScroll;
+            maxLevel = minLevel + visibleRange;
+        }
         
         if (y < paddingY || y > height - paddingY) {
             setTooltipInfo(null);
@@ -642,7 +738,7 @@ export default function CombineTank() {
                         color: '#60a5fa',
                         fontWeight: '500'
                     }}>
-                        v1.4.5
+                        v1.4.7
                     </span>
                 </h1>
                 <p style={styles.subtitle}>Verifikasi Level vs Volume Tanki ROAS</p>
@@ -844,19 +940,21 @@ export default function CombineTank() {
                                 </div>
                                 <div style={{
                                     ...styles.chartContainer,
-                                    overflowY: chartMode === 'zoom' ? 'auto' : 'hidden',
-                                    overflowX: 'hidden'
+                                    overflow: 'hidden'
                                 }}>
                                     <canvas 
                                         ref={canvasRef} 
                                         style={{ 
                                             width: '100%', 
-                                            height: chartMode === 'zoom' ? '2000px' : '100%', 
-                                            cursor: 'crosshair',
+                                            height: '100%', 
+                                            cursor: chartMode === 'zoom' ? (isDragging ? 'grabbing' : 'grab') : 'crosshair',
                                             display: 'block'
                                         }}
                                         onMouseMove={handleCanvasMouseMove}
-                                        onMouseLeave={() => setTooltipInfo(null)}
+                                        onMouseLeave={handleMouseLeave}
+                                        onMouseDown={handleMouseDown}
+                                        onMouseUp={handleMouseUp}
+                                        onWheel={handleWheel}
                                     ></canvas>
                                     {tooltipInfo && (
                                         <>
@@ -893,6 +991,37 @@ export default function CombineTank() {
                                     )}
                                 </div>
                             </div>
+
+                            {/* Anomaly Table Panel */}
+                            {anomalyData.length > 0 && (
+                                <div style={styles.glassPanel}>
+                                    <h3 style={{ ...styles.panelTitle, margin: '0 0 1rem 0', color: '#ef4444' }}>
+                                        ⚠️ Daftar Anomali (Cacat Dinding Terdeteksi)
+                                    </h3>
+                                    <div style={{ ...styles.tableContainer, maxHeight: '250px' }}>
+                                        <table style={styles.table}>
+                                            <thead style={styles.thead}>
+                                                <tr>
+                                                    <th style={{...styles.th, width: '60px'}}>#</th>
+                                                    <th style={styles.th}>Level (mm)</th>
+                                                    <th style={styles.th}>Δ Volume (L)</th>
+                                                    <th style={styles.th}>Penyimpangan</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {anomalyData.map((d, i) => (
+                                                    <tr key={d.level_mm} style={{ ...styles.tr, background: 'rgba(239, 68, 68, 0.05)' }}>
+                                                        <td style={styles.td}>{i + 1}</td>
+                                                        <td style={styles.td}>{formatLevel(d.level_mm)}</td>
+                                                        <td style={{...styles.td, color: '#ef4444', fontWeight: '500'}}>{d.delta_vol.toLocaleString('id-ID', {maximumFractionDigits:2})}</td>
+                                                        <td style={{...styles.td, color: '#ef4444'}}>{(d.devRatio * 100).toFixed(1)}% (+{Math.abs(d.delta_vol - (d.delta_vol / (1 + d.devRatio))).toFixed(1)} L)</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Main Table Panel */}
                             <div style={styles.glassPanel}>
