@@ -21,6 +21,8 @@ export default function CombineTank() {
     const [strappingRaw, setStrappingRaw] = useState(null);
     const [fractionRaw, setFractionRaw] = useState(null);
     const [tankName, setTankName] = useState("");
+    const [strappingPreview, setStrappingPreview] = useState([]);
+    const [fractionPreview, setFractionPreview] = useState([]);
     
     const [isDragOverStrapping, setIsDragOverStrapping] = useState(false);
     const [isDragOverFraction, setIsDragOverFraction] = useState(false);
@@ -145,6 +147,8 @@ export default function CombineTank() {
             setIsProcessing(true);
             setCombinedData([]);
             setTooltipInfo(null);
+            setStrappingPreview([]);
+            setFractionPreview([]);
             
             setProgress(5);
             setProgressText("Membaca File Strapping...");
@@ -216,6 +220,30 @@ export default function CombineTank() {
                 await yieldToMain();
             }
 
+            // Calculate delta
+            for (let idx = 0; idx < results.length; idx++) {
+                const currentVol = parseFloat(results[idx].volume);
+                let delta = 0;
+                if (idx > 0) {
+                    const prevVol = parseFloat(results[idx - 1].volume);
+                    delta = currentVol - prevVol;
+                }
+                results[idx].delta = delta.toFixed(2);
+            }
+
+            // Set strapping preview
+            const strapArray = [];
+            let strapCount = 0;
+            for (let [cm, vol] of strappingMap.entries()) {
+                if (strapCount >= 5) break;
+                strapArray.push({ cm, vol });
+                strapCount++;
+            }
+            setStrappingPreview(strapArray);
+
+            // Set fraction preview
+            setFractionPreview(fractionRules.slice(0, 5));
+
             setProgress(90);
             setProgressText("Menyiapkan Tampilan Tabel & Grafik...");
             await yieldToMain();
@@ -236,32 +264,41 @@ export default function CombineTank() {
         if (combinedData.length === 0) return;
         
         const data = [
-            [`DATA ROAS TANGKI ${tankName ? tankName.toUpperCase() : '...'} LEVEL VS VOLUME`, ''],
+            [`DATA ROAS TANGKI ${tankName ? tankName.toUpperCase() : '...'} LEVEL VS VOLUME`, '', '', ''],
             [],
-            ['Level (mm)', 'Volume']
+            ['Level (mm)', 'Nama Tangki', 'Volume', 'Delta']
         ];
         
         combinedData.forEach(r => {
-            data.push([parseInt(r.level_mm), parseFloat(r.volume)]);
+            data.push([
+                parseInt(r.level_mm),
+                tankName || '',
+                parseFloat(r.volume),
+                parseFloat(r.delta || 0)
+            ]);
         });
         
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(data);
         
         ws['!merges'] = [
-            { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }
+            { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }
         ];
         
         // Format columns
         for (let r = 3; r < data.length; r++) {
             const levelCellRef = XLSX.utils.encode_cell({ r, c: 0 });
-            const volumeCellRef = XLSX.utils.encode_cell({ r, c: 1 });
+            const volumeCellRef = XLSX.utils.encode_cell({ r, c: 2 });
+            const deltaCellRef = XLSX.utils.encode_cell({ r, c: 3 });
             
             if (ws[levelCellRef]) {
                 ws[levelCellRef].z = '#,##0';
             }
             if (ws[volumeCellRef]) {
                 ws[volumeCellRef].z = '#,##0.00';
+            }
+            if (ws[deltaCellRef]) {
+                ws[deltaCellRef].z = '#,##0.00';
             }
         }
         
@@ -275,12 +312,15 @@ export default function CombineTank() {
         return combinedData.filter(d => {
             const formattedVol = formatVolume(d.volume);
             const formattedLvl = formatLevel(d.level_mm);
+            const formattedDelta = formatVolume(d.delta);
             return d.level_mm.toString().includes(query) || 
                    d.volume.toString().includes(query) ||
                    formattedVol.includes(query) ||
-                   formattedLvl.includes(query);
+                   formattedLvl.includes(query) ||
+                   formattedDelta.includes(query) ||
+                   (tankName && tankName.toLowerCase().includes(query));
         });
-    }, [combinedData, searchQuery]);
+    }, [combinedData, searchQuery, tankName]);
 
     const drawChart = useCallback(() => {
         const canvas = canvasRef.current;
@@ -548,22 +588,26 @@ export default function CombineTank() {
                                 <thead>
                                     <tr>
                                         <th style={styles.th}>Level (mm)</th>
+                                        <th style={styles.th}>Nama Tangki</th>
                                         <th style={styles.th}>Volume</th>
+                                        <th style={styles.th}>Delta</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {filteredData.length === 0 && (
-                                        <tr><td colSpan="2" style={styles.tdCenter}>Data tidak ditemukan.</td></tr>
+                                        <tr><td colSpan="4" style={styles.tdCenter}>Data tidak ditemukan.</td></tr>
                                     )}
                                     {filteredData.slice(0, 300).map((row, idx) => (
                                         <tr key={idx} style={styles.tr}>
                                             <td style={styles.td}>{formatLevel(row.level_mm)}</td>
+                                            <td style={styles.td}>{tankName || "-"}</td>
                                             <td style={styles.tdSuccess}>{formatVolume(row.volume)}</td>
+                                            <td style={styles.td}>{formatVolume(row.delta)}</td>
                                         </tr>
                                     ))}
                                     {filteredData.length > 300 && (
                                         <tr>
-                                            <td colSpan="2" style={styles.tdCenter}>
+                                            <td colSpan="4" style={styles.tdCenter}>
                                                 Menampilkan 300 dari total {filteredData.length} baris.<br/>
                                                 <em style={{opacity:0.7}}>Gunakan kotak pencarian di atas untuk mencari angka spesifik.</em>
                                             </td>
@@ -615,6 +659,60 @@ export default function CombineTank() {
                                         <div style={{ color: '#94a3b8' }}>Total Vol: <strong style={{ color: '#10b981' }}>{formatVolume(tooltipInfo.volume)}</strong></div>
                                     </div>
                                 )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {combinedData.length > 0 && !isProcessing && strappingPreview.length > 0 && (
+                <div style={styles.glassPanel}>
+                    <h3 style={{ color: '#f8fafc', marginBottom: '1.2rem', fontWeight: '600', fontSize: '1.2rem' }}>📄 Preview Data Input</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                        <div>
+                            <h4 style={{ color: '#60a5fa', marginBottom: '0.5rem', fontSize: '0.95rem' }}>File 1: Data Strapping (5 Baris Pertama)</h4>
+                            <div style={styles.tableContainerPreview}>
+                                <table style={styles.table}>
+                                    <thead>
+                                        <tr>
+                                            <th style={styles.thPreview}>Tinggi (cm)</th>
+                                            <th style={styles.thPreview}>Volume</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {strappingPreview.map((row, idx) => (
+                                            <tr key={idx} style={styles.tr}>
+                                                <td style={styles.tdPreview}>{row.cm} cm</td>
+                                                <td style={styles.tdPreview}>{row.vol.toFixed(2)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 style={{ color: '#10b981', marginBottom: '0.5rem', fontSize: '0.95rem' }}>File 2: Data Fraction (5 Baris Pertama)</h4>
+                            <div style={styles.tableContainerPreview}>
+                                <table style={styles.table}>
+                                    <thead>
+                                        <tr>
+                                            <th style={styles.thPreview}>Dari (cm)</th>
+                                            <th style={styles.thPreview}>Sampai (cm)</th>
+                                            <th style={styles.thPreview}>Offset (mm)</th>
+                                            <th style={styles.thPreview}>Vol Tambahan</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {fractionPreview.map((row, idx) => (
+                                            <tr key={idx} style={styles.tr}>
+                                                <td style={styles.tdPreview}>{row.minCm}</td>
+                                                <td style={styles.tdPreview}>{row.maxCm}</td>
+                                                <td style={styles.tdPreview}>{row.offset_mm}</td>
+                                                <td style={styles.tdPreview}>{row.volume_tambahan.toFixed(2)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -852,5 +950,27 @@ const styles = {
         height: '560px',
         position: 'relative',
         overflow: 'hidden'
+    },
+    tableContainerPreview: {
+        maxHeight: '220px',
+        overflowY: 'auto',
+        borderRadius: '8px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        background: 'rgba(0,0,0,0.2)',
+    },
+    thPreview: {
+        position: 'sticky',
+        top: 0,
+        background: '#1e293b',
+        padding: '0.5rem 0.75rem',
+        fontWeight: '600',
+        color: '#94a3b8',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        fontSize: '0.85rem',
+    },
+    tdPreview: {
+        padding: '0.5rem 0.75rem',
+        fontFamily: 'monospace',
+        fontSize: '0.85rem',
     }
 };

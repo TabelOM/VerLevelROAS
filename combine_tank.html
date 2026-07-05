@@ -90,6 +90,30 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.5); white-space: nowrap;
         }
 
+        .table-container-preview {
+            max-height: 220px;
+            overflow-y: auto;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: rgba(0,0,0,0.2);
+        }
+        .th-preview {
+            position: sticky;
+            top: 0;
+            background: #1e293b;
+            padding: 0.5rem 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+        }
+        .td-preview {
+            padding: 0.5rem 0.75rem;
+            font-family: monospace;
+            font-size: 0.85rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
         @media (max-width: 900px) { .upload-grid, .content-grid { grid-template-columns: 1fr; } }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -140,7 +164,7 @@
         <div class="content-grid">
             <div class="table-container">
                 <table id="result-table">
-                    <thead><tr><th>Level (mm)</th><th>Volume</th></tr></thead>
+                    <thead><tr><th>Level (mm)</th><th>Nama Tangki</th><th>Volume</th><th>Delta</th></tr></thead>
                     <tbody id="table-body"></tbody>
                 </table>
             </div>
@@ -153,6 +177,42 @@
                 <div class="chart-container" id="chart-container">
                     <canvas id="volumeChart" style="width: 100%; height: 100%; cursor: crosshair;"></canvas>
                     <div id="chart-tooltip"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="preview-area" class="glass-panel" style="display: none;">
+        <h3 style="color: var(--text-main); margin-bottom: 1.2rem; font-weight: 600; font-size: 1.2rem;">📄 Preview Data Input</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+            <div>
+                <h4 style="color: var(--primary); margin-bottom: 0.5rem; font-size: 0.95rem;">File 1: Data Strapping (5 Baris Pertama)</h4>
+                <div class="table-container-preview">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="th-preview">Tinggi (cm)</th>
+                                <th class="th-preview">Volume</th>
+                            </tr>
+                        </thead>
+                        <tbody id="strapping-preview-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div>
+                <h4 style="color: var(--success); margin-bottom: 0.5rem; font-size: 0.95rem;">File 2: Data Fraction (5 Baris Pertama)</h4>
+                <div class="table-container-preview">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="th-preview">Dari (cm)</th>
+                                <th class="th-preview">Sampai (cm)</th>
+                                <th class="th-preview">Offset (mm)</th>
+                                <th class="th-preview">Vol Tambahan</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fraction-preview-body"></tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -326,6 +386,46 @@
                 await yieldToMain();
             }
 
+            // Calculate delta
+            for (let idx = 0; idx < results.length; idx++) {
+                const currentVol = parseFloat(results[idx].volume);
+                let delta = 0;
+                if (idx > 0) {
+                    const prevVol = parseFloat(results[idx - 1].volume);
+                    delta = currentVol - prevVol;
+                }
+                results[idx].delta = delta.toFixed(2);
+            }
+
+            // Set strapping preview
+            const strapPreviewBody = document.getElementById('strapping-preview-body');
+            let strapHtml = '';
+            let count = 0;
+            for (let [cm, vol] of strappingMap.entries()) {
+                if (count >= 5) break;
+                strapHtml += `<tr>
+                    <td class="td-preview">${cm} cm</td>
+                    <td class="td-preview">${vol.toFixed(2)}</td>
+                </tr>`;
+                count++;
+            }
+            strapPreviewBody.innerHTML = strapHtml;
+
+            // Set fraction preview
+            const fractionPreviewBody = document.getElementById('fraction-preview-body');
+            let fracHtml = '';
+            for (let i = 0; i < Math.min(fractionRules.length, 5); i++) {
+                fracHtml += `<tr>
+                    <td class="td-preview">${fractionRules[i].minCm}</td>
+                    <td class="td-preview">${fractionRules[i].maxCm}</td>
+                    <td class="td-preview">${fractionRules[i].offset_mm}</td>
+                    <td class="td-preview">${fractionRules[i].volume_tambahan.toFixed(2)}</td>
+                </tr>`;
+            }
+            fractionPreviewBody.innerHTML = fracHtml;
+
+            document.getElementById('preview-area').style.display = 'block';
+
             setProgress(90, 'Menyiapkan Tampilan Tabel & Grafik...');
             await yieldToMain();
             
@@ -421,10 +521,13 @@
             filtered = data.filter(d => {
                 const formattedVol = formatVolume(d.volume);
                 const formattedLvl = formatLevel(d.level_mm);
+                const formattedDelta = formatVolume(d.delta);
                 return d.level_mm.toString().includes(q) || 
                        d.volume.toString().includes(q) ||
                        formattedVol.includes(q) ||
-                       formattedLvl.includes(q);
+                       formattedLvl.includes(q) ||
+                       formattedDelta.includes(q) ||
+                       (tankName && tankName.toLowerCase().includes(q));
             });
         }
 
@@ -433,17 +536,19 @@
         for (let i = 0; i < Math.min(filtered.length, renderLimit); i++) {
             html += `<tr>
                 <td style="font-family: monospace; font-weight: 500;">${formatLevel(filtered[i].level_mm)}</td>
+                <td style="font-family: monospace; font-weight: 500;">${tankName || '-'}</td>
                 <td style="font-family: monospace; color: var(--success); font-weight: 600;">${formatVolume(filtered[i].volume)}</td>
+                <td style="font-family: monospace; font-weight: 500;">${formatVolume(filtered[i].delta)}</td>
             </tr>`;
         }
         
         if (filtered.length > renderLimit) {
-            html += `<tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+            html += `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
                 Menampilkan ${renderLimit} dari total ${filtered.length} baris.<br>
                 <em>Gunakan kotak pencarian di atas untuk mencari angka spesifik.</em>
             </td></tr>`;
         } else if (filtered.length === 0) {
-            html += `<tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Data tidak ditemukan.</td></tr>`;
+            html += `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Data tidak ditemukan.</td></tr>`;
         }
         
         tbody.innerHTML = html;
@@ -639,20 +744,25 @@
         if (combinedData.length === 0) return;
         
         const data = [
-            [`DATA ROAS TANGKI ${tankName ? tankName.toUpperCase() : '...'} LEVEL VS VOLUME`, ''],
+            [`DATA ROAS TANGKI ${tankName ? tankName.toUpperCase() : '...'} LEVEL VS VOLUME`, '', '', ''],
             [],
-            ['Level (mm)', 'Volume']
+            ['Level (mm)', 'Nama Tangki', 'Volume', 'Delta']
         ];
         
         combinedData.forEach(r => {
-            data.push([parseInt(r.level_mm), parseFloat(r.volume)]);
+            data.push([
+                parseInt(r.level_mm),
+                tankName || '',
+                parseFloat(r.volume),
+                parseFloat(r.delta || 0)
+            ]);
         });
         
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(data);
         
         ws['!merges'] = [
-            { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }
+            { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }
         ];
         
         // Format columns
