@@ -418,8 +418,8 @@ export default function CombineTank() {
 
         const minLevel = deltaData[0].level_mm;
         const maxLevel = deltaData[deltaData.length - 1].level_mm;
-        const paddingY = 40;
-        const paddingX = 40;
+        const paddingY = 45;
+        const paddingX = 60;
 
         // Grid lines Y (Level)
         ctx.strokeStyle = 'rgba(255,255,255,0.05)';
@@ -626,7 +626,7 @@ export default function CombineTank() {
                         color: '#60a5fa',
                         fontWeight: '500'
                     }}>
-                        v1.4.0
+                        v1.4.1
                     </span>
                 </h1>
                 <p style={styles.subtitle}>Verifikasi Level vs Volume Tanki ROAS</p>
