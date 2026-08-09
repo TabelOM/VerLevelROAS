@@ -771,9 +771,9 @@ export default function CombineTank() {
         if (chartMode !== 'zoom') return;
         e.preventDefault();
         
-        const zoomSensitivity = 0.002;
+        const zoomSensitivity = 0.003;
         let newZoom = zoomScaleY * (1 - e.deltaY * zoomSensitivity);
-        newZoom = Math.max(1, Math.min(newZoom, 50)); 
+        newZoom = Math.max(1, Math.min(newZoom, 500)); 
         setZoomScaleY(newZoom);
     };
 
