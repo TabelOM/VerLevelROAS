@@ -77,19 +77,16 @@ export default function CombineTank() {
                 const reader = new FileReader();
                 reader.onload = (ev) => { 
                     const content = ev.target.result;
-                    const textLower = content.toLowerCase();
+                    const isFraction = fileName.includes('fraction');
                     
-                    const isCSV = fileName.endsWith('.csv');
-                    const hasDari = textLower.includes('dari') && textLower.includes('sampai');
-                    
-                    if (isCSV || !hasDari) {
-                        setStrappingFile(file);
-                        setStrappingRaw(content);
+                    if (isFraction) {
+                        setFractionFile(file);
+                        setFractionRaw(content);
                         const d = extractTankName(file.name);
                         if (d) setTankName(prev => prev || d);
                     } else {
-                        setFractionFile(file);
-                        setFractionRaw(content);
+                        setStrappingFile(file);
+                        setStrappingRaw(content);
                         const d = extractTankName(file.name);
                         if (d) setTankName(prev => prev || d);
                     }
@@ -166,41 +163,77 @@ export default function CombineTank() {
         return { map, tankNo };
     };
 
-    const parseFraction = (htmlText) => {
+    const parseFraction = (text) => {
         const rules = [];
         let tankNo = "";
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlText, 'text/html');
-        const rows = doc.querySelectorAll('tr');
-        rows.forEach(row => {
-            const cols = row.querySelectorAll('td, th');
-            if (cols.length >= 6) {
-                const rowTexts = Array.from(cols).map(c => (c.textContent || '').trim().toLowerCase());
-                if (rowTexts.includes('dari')) return;
-                let dariStr = (cols[2].textContent || '').trim();
-                let sampaiStr = (cols[3].textContent || '').trim();
-                let tinggiStr = (cols[4].textContent || '').trim();
-                let volStr = (cols[5].textContent || '').trim();
-                
-                const dari = parseFloat(dariStr.replace(/,/g, ''));
-                const sampai = parseFloat(sampaiStr.replace(/,/g, ''));
-                const tinggi = parseInt(tinggiStr.replace(/,/g, ''));
-                const vol = parseFloat(volStr.replace(/,/g, ''));
-                
-                if (!isNaN(dari) && !isNaN(sampai) && !isNaN(tinggi) && !isNaN(vol)) {
-                    const minCm = Math.ceil(dari); 
-                    const maxCm = Math.floor(sampai);
-                    rules.push({ minCm, maxCm, offset_mm: tinggi, volume_tambahan: vol });
+        
+        if (text.trim().toLowerCase().startsWith('<table') || text.toLowerCase().includes('<th') || text.toLowerCase().includes('<tr')) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(text, 'text/html');
+            const rows = doc.querySelectorAll('tr');
+            rows.forEach(row => {
+                const cols = row.querySelectorAll('td, th');
+                if (cols.length >= 6) {
+                    const rowTexts = Array.from(cols).map(c => (c.textContent || '').trim().toLowerCase());
+                    if (rowTexts.includes('dari')) return;
+                    let dariStr = (cols[2].textContent || '').trim();
+                    let sampaiStr = (cols[3].textContent || '').trim();
+                    let tinggiStr = (cols[4].textContent || '').trim();
+                    let volStr = (cols[5].textContent || '').trim();
                     
-                    if (!tankNo && cols[1]) {
-                        const candidate = cols[1].innerText.trim();
-                        if (candidate && candidate.toLowerCase() !== 'tank_no') {
-                            tankNo = candidate;
+                    const dari = parseFloat(dariStr.replace(/,/g, ''));
+                    const sampai = parseFloat(sampaiStr.replace(/,/g, ''));
+                    const tinggi = parseInt(tinggiStr.replace(/,/g, ''));
+                    const vol = parseFloat(volStr.replace(/,/g, ''));
+                    
+                    if (!isNaN(dari) && !isNaN(sampai) && !isNaN(tinggi) && !isNaN(vol)) {
+                        const minCm = Math.ceil(dari); 
+                        const maxCm = Math.floor(sampai);
+                        rules.push({ minCm, maxCm, offset_mm: tinggi, volume_tambahan: vol });
+                        
+                        if (!tankNo && cols[1]) {
+                            const candidate = cols[1].innerText.trim();
+                            if (candidate && candidate.toLowerCase() !== 'tank_no') {
+                                tankNo = candidate;
+                            }
+                        }
+                    }
+                }
+            });
+        } else {
+            const lines = text.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                const parts = line.split(/[;,]/);
+                if (parts.length >= 8) {
+                    const dariStr = parts[4].trim();
+                    const sampaiStr = parts[5].trim();
+                    const tinggiStr = parts[6].trim();
+                    const volStr = parts[7].trim();
+                    
+                    if (dariStr.toLowerCase() === 'dari') continue; 
+                    
+                    const dari = parseFloat(dariStr.replace(/,/g, ''));
+                    const sampai = parseFloat(sampaiStr.replace(/,/g, ''));
+                    const tinggi = parseInt(tinggiStr.replace(/,/g, ''));
+                    const vol = parseFloat(volStr.replace(/,/g, ''));
+                    
+                    if (!isNaN(dari) && !isNaN(sampai) && !isNaN(tinggi) && !isNaN(vol)) {
+                        const minCm = Math.ceil(dari); 
+                        const maxCm = Math.floor(sampai);
+                        rules.push({ minCm, maxCm, offset_mm: tinggi, volume_tambahan: vol });
+                        
+                        if (!tankNo && parts[3]) {
+                            const candidate = parts[3].trim();
+                            if (candidate && candidate.toLowerCase() !== 'tank no') {
+                                tankNo = candidate;
+                            }
                         }
                     }
                 }
             }
-        });
+        }
         return { rules, tankNo };
     };
 
