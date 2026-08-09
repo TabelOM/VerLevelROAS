@@ -165,7 +165,9 @@ export default function CombineTank() {
 
     const parseFraction = (text) => {
         const rules = [];
+        const sphericalData = [];
         let tankNo = "";
+        let isSpherical = false;
         
         if (text.trim().toLowerCase().startsWith('<table') || text.toLowerCase().includes('<th') || text.toLowerCase().includes('<tr')) {
             const parser = new DOMParser();
@@ -173,8 +175,31 @@ export default function CombineTank() {
             const rows = doc.querySelectorAll('tr');
             rows.forEach(row => {
                 const cols = row.querySelectorAll('td, th');
-                if (cols.length >= 6) {
-                    const rowTexts = Array.from(cols).map(c => (c.textContent || '').trim().toLowerCase());
+                const rowTexts = Array.from(cols).map(c => (c.textContent || '').trim().toLowerCase());
+                
+                if (rowTexts.includes('beda') && rowTexts.includes('tinggi') && !rowTexts.includes('dari')) {
+                    isSpherical = true;
+                    return;
+                }
+                
+                if (isSpherical && cols.length >= 7) {
+                    const tinggiStr = (cols[4].textContent || '').trim();
+                    const volStr = (cols[5].textContent || '').trim();
+                    const bedaStr = (cols[6].textContent || '').trim();
+                    const tinggi = parseFloat(tinggiStr.replace(/,/g, ''));
+                    const vol = parseFloat(volStr.replace(/,/g, ''));
+                    const beda = parseFloat(bedaStr.replace(/,/g, ''));
+                    
+                    if (!isNaN(tinggi) && !isNaN(vol) && !isNaN(beda)) {
+                        sphericalData.push({ cm: tinggi, baseVolume: vol, beda: beda });
+                        if (!tankNo && cols[3]) {
+                            const candidate = cols[3].innerText.trim();
+                            if (candidate && candidate.toLowerCase() !== 'tank no' && candidate.toLowerCase() !== 'tank_no') {
+                                tankNo = candidate;
+                            }
+                        }
+                    }
+                } else if (!isSpherical && cols.length >= 6) {
                     if (rowTexts.includes('dari')) return;
                     let dariStr = (cols[2].textContent || '').trim();
                     let sampaiStr = (cols[3].textContent || '').trim();
@@ -202,11 +227,40 @@ export default function CombineTank() {
             });
         } else {
             const lines = text.split('\n');
+            if (lines.length > 0) {
+                const headerLine = lines[0].toLowerCase();
+                if (headerLine.includes('beda') && !headerLine.includes('dari')) {
+                    isSpherical = true;
+                }
+            }
+            
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i].trim();
                 if (!line) continue;
                 const parts = line.split(/[;,]/);
-                if (parts.length >= 8) {
+                
+                if (isSpherical && parts.length >= 7) {
+                    const headerTest = parts.join('').toLowerCase();
+                    if (headerTest.includes('beda') && headerTest.includes('tinggi')) continue;
+                    
+                    const tinggiStr = parts[4].trim();
+                    const volStr = parts[5].trim();
+                    const bedaStr = parts[6].trim();
+                    
+                    const tinggi = parseFloat(tinggiStr.replace(/,/g, ''));
+                    const vol = parseFloat(volStr.replace(/,/g, ''));
+                    const beda = parseFloat(bedaStr.replace(/,/g, ''));
+                    
+                    if (!isNaN(tinggi) && !isNaN(vol) && !isNaN(beda)) {
+                        sphericalData.push({ cm: tinggi, baseVolume: vol, beda: beda });
+                        if (!tankNo && parts[3]) {
+                            const candidate = parts[3].trim();
+                            if (candidate && candidate.toLowerCase() !== 'tank no') {
+                                tankNo = candidate;
+                            }
+                        }
+                    }
+                } else if (!isSpherical && parts.length >= 8) {
                     const dariStr = parts[4].trim();
                     const sampaiStr = parts[5].trim();
                     const tinggiStr = parts[6].trim();
@@ -234,7 +288,7 @@ export default function CombineTank() {
                 }
             }
         }
-        return { rules, tankNo };
+        return { rules, tankNo, isSpherical, sphericalData };
     };
 
     const handleProcess = async () => {
@@ -267,18 +321,22 @@ export default function CombineTank() {
             
             let fractionRules = [];
             let fracTankNo = "";
+            let isSpherical = false;
+            let sphericalData = [];
             
             if (fractionRaw) {
                 const parsedFrac = parseFraction(fractionRaw);
                 fractionRules = parsedFrac.rules;
                 fracTankNo = parsedFrac.tankNo;
+                isSpherical = parsedFrac.isSpherical;
+                sphericalData = parsedFrac.sphericalData;
                 
-                if (fractionRules.length === 0) {
-                    throw new Error("Data Fraction kosong atau format tidak sesuai (dari;sampai;tinggi;volume). Pastikan formatnya benar.");
+                if (fractionRules.length === 0 && (!isSpherical || sphericalData.length === 0)) {
+                    throw new Error("Data Fraction kosong atau format tidak sesuai. Pastikan formatnya benar.");
                 }
             }
 
-            if (!strappingRaw && fractionRules.length === 0) {
+            if (!strappingRaw && fractionRules.length === 0 && (!isSpherical || sphericalData.length === 0)) {
                 throw new Error("Tidak ada data yang valid untuk diproses.");
             }
 
@@ -289,90 +347,139 @@ export default function CombineTank() {
             setProgressText("Mempersiapkan indeks data...");
             await yieldToMain();
 
-            const fractionLookup = {};
-            const cincinMap = new Map();
-            let cincinCounter = 1;
-
-            fractionRules.forEach(r => {
-                const rangeKey = `${r.minCm}-${r.maxCm}`;
-                if (!cincinMap.has(rangeKey)) {
-                    cincinMap.set(rangeKey, cincinCounter++);
-                }
-                const cincinNumber = cincinMap.get(rangeKey);
-                
-                for (let cm = r.minCm; cm <= r.maxCm; cm++) {
-                    if (!fractionLookup[cm]) fractionLookup[cm] = { offsetMap: {}, cincinNumber };
-                    fractionLookup[cm].offsetMap[r.offset_mm] = r.volume_tambahan;
-                    fractionLookup[cm].cincinNumber = cincinNumber;
-                }
-            });
-            
-            let minCm = Infinity, maxCm = -Infinity;
-            for (let cm of strappingMap.keys()) {
-                if (cm < minCm) minCm = cm;
-                if (cm > maxCm) maxCm = cm;
-            }
-            if (strappingMap.size === 0 && fractionRules.length > 0) {
-                fractionRules.forEach(r => {
-                    if (r.minCm < minCm) minCm = r.minCm;
-                    if (r.maxCm > maxCm) maxCm = r.maxCm;
-                });
-            }
-
             const results = [];
-            const chunkSize = 40; 
-            const totalItems = maxCm - minCm + 1;
-            const totalChunks = Math.ceil(totalItems / chunkSize);
-            const startTime = performance.now();
-
-            for (let i = 0; i < totalChunks; i++) {
-                const startCm = minCm + (i * chunkSize);
-                const endCm = Math.min(startCm + chunkSize - 1, maxCm);
+            
+            if (isSpherical && sphericalData.length > 0) {
+                const chunkSize = 40;
+                const totalItems = sphericalData.length;
+                const totalChunks = Math.ceil(totalItems / chunkSize);
+                const startTime = performance.now();
                 
-                for (let cm = startCm; cm <= endCm; cm++) {
-                    // Only process if cm is in strapping map OR if we are processing fraction-only
-                    if (strappingMap.has(cm) || strappingMap.size === 0) {
-                        const baseVolume = strappingMap.has(cm) ? strappingMap.get(cm) : 0;
-                        const cincinInfo = fractionLookup[cm];
-                        const cincinNum = cincinInfo ? cincinInfo.cincinNumber : '-';
+                for (let i = 0; i < totalChunks; i++) {
+                    const startIdx = i * chunkSize;
+                    const endIdx = Math.min(startIdx + chunkSize, totalItems);
+                    
+                    for (let j = startIdx; j < endIdx; j++) {
+                        const sd = sphericalData[j];
                         
-                        results.push({ 
-                            level_mm: cm * 10,
-                            cm: cm,
+                        results.push({
+                            level_mm: sd.cm * 10,
+                            cm: sd.cm,
                             mm: 0,
-                            baseVolume: baseVolume,
+                            baseVolume: sd.baseVolume,
                             addVol: 0,
-                            totalVolume: baseVolume,
-                            cincin: cincinNum
+                            totalVolume: sd.baseVolume,
+                            cincin: 'Spherical'
                         });
                         
-                        if (cm < maxCm && fractionRules.length > 0) {
-                            const cmFraction = cincinInfo ? cincinInfo.offsetMap : {};
-                            for (let mm = 1; mm <= 9; mm++) {
-                                const addVol = cmFraction[mm] || 0;
-                                const totalVolume = baseVolume + addVol;
-                                results.push({ 
-                                    level_mm: (cm * 10) + mm, 
-                                    cm: cm,
-                                    mm: mm,
-                                    baseVolume: baseVolume,
-                                    addVol: addVol,
-                                    totalVolume: totalVolume,
-                                    cincin: cincinNum
-                                });
+                        for (let mm = 1; mm <= 9; mm++) {
+                            const addVol = mm * sd.beda;
+                            const totalVolume = sd.baseVolume + addVol;
+                            results.push({
+                                level_mm: (sd.cm * 10) + mm,
+                                cm: sd.cm,
+                                mm: mm,
+                                baseVolume: sd.baseVolume,
+                                addVol: addVol,
+                                totalVolume: totalVolume,
+                                cincin: 'Spherical'
+                            });
+                        }
+                    }
+                    
+                    const elapsed = (performance.now() - startTime) / 1000;
+                    const ratio = (i + 1) / totalChunks;
+                    const eta = Math.max(0, (elapsed / ratio) - elapsed);
+                    const currentProgress = 25 + Math.round(ratio * 60);
+                    
+                    setProgress(currentProgress);
+                    setProgressText(`Menghitung Spherical (${currentProgress}%)... Estimasi sisa waktu: ${eta.toFixed(1)} detik.`);
+                    await yieldToMain();
+                }
+            } else {
+                const fractionLookup = {};
+                const cincinMap = new Map();
+                let cincinCounter = 1;
+
+                fractionRules.forEach(r => {
+                    const rangeKey = `${r.minCm}-${r.maxCm}`;
+                    if (!cincinMap.has(rangeKey)) {
+                        cincinMap.set(rangeKey, cincinCounter++);
+                    }
+                    const cincinNumber = cincinMap.get(rangeKey);
+                    
+                    for (let cm = r.minCm; cm <= r.maxCm; cm++) {
+                        if (!fractionLookup[cm]) fractionLookup[cm] = { offsetMap: {}, cincinNumber };
+                        fractionLookup[cm].offsetMap[r.offset_mm] = r.volume_tambahan;
+                        fractionLookup[cm].cincinNumber = cincinNumber;
+                    }
+                });
+                
+                let minCm = Infinity, maxCm = -Infinity;
+                for (let cm of strappingMap.keys()) {
+                    if (cm < minCm) minCm = cm;
+                    if (cm > maxCm) maxCm = cm;
+                }
+                if (strappingMap.size === 0 && fractionRules.length > 0) {
+                    fractionRules.forEach(r => {
+                        if (r.minCm < minCm) minCm = r.minCm;
+                        if (r.maxCm > maxCm) maxCm = r.maxCm;
+                    });
+                }
+
+                const chunkSize = 40; 
+                const totalItems = maxCm - minCm + 1;
+                const totalChunks = Math.ceil(totalItems / chunkSize);
+                const startTime = performance.now();
+
+                for (let i = 0; i < totalChunks; i++) {
+                    const startCm = minCm + (i * chunkSize);
+                    const endCm = Math.min(startCm + chunkSize - 1, maxCm);
+                    
+                    for (let cm = startCm; cm <= endCm; cm++) {
+                        if (strappingMap.has(cm) || strappingMap.size === 0) {
+                            const baseVolume = strappingMap.has(cm) ? strappingMap.get(cm) : 0;
+                            const cincinInfo = fractionLookup[cm];
+                            const cincinNum = cincinInfo ? cincinInfo.cincinNumber : '-';
+                            
+                            results.push({ 
+                                level_mm: cm * 10,
+                                cm: cm,
+                                mm: 0,
+                                baseVolume: baseVolume,
+                                addVol: 0,
+                                totalVolume: baseVolume,
+                                cincin: cincinNum
+                            });
+                            
+                            if (cm < maxCm && fractionRules.length > 0) {
+                                const cmFraction = cincinInfo ? cincinInfo.offsetMap : {};
+                                for (let mm = 1; mm <= 9; mm++) {
+                                    const addVol = cmFraction[mm] || 0;
+                                    const totalVolume = baseVolume + addVol;
+                                    results.push({ 
+                                        level_mm: (cm * 10) + mm, 
+                                        cm: cm,
+                                        mm: mm,
+                                        baseVolume: baseVolume,
+                                        addVol: addVol,
+                                        totalVolume: totalVolume,
+                                        cincin: cincinNum
+                                    });
+                                }
                             }
                         }
                     }
+                    
+                    const elapsed = (performance.now() - startTime) / 1000;
+                    const ratio = (i + 1) / totalChunks;
+                    const eta = Math.max(0, (elapsed / ratio) - elapsed);
+                    const currentProgress = 25 + Math.round(ratio * 60);
+                    
+                    setProgress(currentProgress);
+                    setProgressText(`Menggabungkan data (${currentProgress}%)... Estimasi sisa waktu: ${eta.toFixed(1)} detik.`);
+                    await yieldToMain();
                 }
-                
-                const elapsed = (performance.now() - startTime) / 1000;
-                const ratio = (i + 1) / totalChunks;
-                const eta = Math.max(0, (elapsed / ratio) - elapsed);
-                const currentProgress = 25 + Math.round(ratio * 60);
-                
-                setProgress(currentProgress);
-                setProgressText(`Menggabungkan data (${currentProgress}%)... Estimasi sisa waktu: ${eta.toFixed(1)} detik.`);
-                await yieldToMain();
             }
 
             // Calculate delta
