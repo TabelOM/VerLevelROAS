@@ -434,11 +434,9 @@ export default function CombineTank() {
 
     const filteredData = useMemo(() => {
         if (!searchQuery) return combinedData;
-        const query = searchQuery.toLowerCase();
+        const query = searchQuery.trim();
         return combinedData.filter(d => {
-            return d.level_mm.toString().includes(query) || 
-                   formatVolume(d.totalVolume).toString().includes(query) ||
-                   formatVolume(d.delta).toString().includes(query);
+            return d.level_mm.toString() === query;
         });
     }, [combinedData, searchQuery]);
 
@@ -1256,6 +1254,9 @@ export default function CombineTank() {
 
                             {/* Main Table Panel */}
                             <div id="main-table-panel" style={styles.glassPanel}>
+                                <h3 style={{ ...styles.panelTitle, margin: '0 0 1rem 0', color: '#334155' }}>
+                                    Tabel Data
+                                </h3>
                                 <div style={styles.toolbar}>
                                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                         <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Nama Tangki:</span>
@@ -1273,7 +1274,7 @@ export default function CombineTank() {
                                     </div>
                                     <input 
                                         type="text" 
-                                        placeholder="Cari..." 
+                                        placeholder="Cari Level (mm)..." 
                                         style={{ ...styles.searchBox, maxWidth: '180px', padding: '0.5rem 0.75rem' }}
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
