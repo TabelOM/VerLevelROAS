@@ -582,18 +582,31 @@ export default function CombineTank() {
         maxDeltaDraw = maxDeltaDraw + (maxDeltaDraw * 0.1);
 
         if (chartMode === 'zoom') {
+            let nMax = 0;
+            let nMin = 0;
+
             if (normalData.length > 0) {
-                const normalMax = Math.max(...normalData.map(d => d.delta_vol));
-                const normalMin = Math.min(...normalData.map(d => d.delta_vol));
-                const range = normalMax - normalMin;
-                minDeltaDraw = Math.max(0, normalMin - range * 0.1); 
-                maxDeltaDraw = normalMax + range * 0.1;
+                nMax = Math.max(...normalData.map(d => d.delta_vol));
+                nMin = Math.min(...normalData.map(d => d.delta_vol));
             } else {
-                const fallbackMin = Math.min(...dataForXBounds.map(d => d.delta_vol));
-                const fallbackMax = Math.max(...dataForXBounds.map(d => d.delta_vol));
-                const range = fallbackMax - fallbackMin;
-                minDeltaDraw = Math.max(0, fallbackMin - range * 0.1);
-                maxDeltaDraw = fallbackMax + range * 0.1;
+                nMax = Math.max(...dataForXBounds.map(d => d.delta_vol));
+                nMin = Math.min(...dataForXBounds.map(d => d.delta_vol));
+            }
+
+            let range = nMax - nMin;
+            
+            // Enforce a minimum display range to prevent microscopic variations (like 0.001L) 
+            // from being magnified into massive visual dents on the silhouette chart.
+            const minAllowedRange = Math.max(nMax * 0.05, 2.0); 
+            
+            if (range < minAllowedRange) {
+                const center = (nMax + nMin) / 2;
+                range = minAllowedRange;
+                minDeltaDraw = Math.max(0, center - range / 2);
+                maxDeltaDraw = center + range / 2;
+            } else {
+                minDeltaDraw = Math.max(0, nMin - range * 0.1);
+                maxDeltaDraw = nMax + range * 0.1;
             }
         }
 
