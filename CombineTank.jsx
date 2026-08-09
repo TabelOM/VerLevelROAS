@@ -36,6 +36,7 @@ export default function CombineTank() {
     const [searchQuery, setSearchQuery] = useState("");
     const [tooltipInfo, setTooltipInfo] = useState(null);
     const [chartMode, setChartMode] = useState('normal'); // 'normal' | 'zoom'
+    const [anomalySort, setAnomalySort] = useState({ key: null, direction: 'asc' });
     
     // Interactive Zoom states
     const [zoomScaleY, setZoomScaleY] = useState(1);
@@ -68,32 +69,36 @@ export default function CombineTank() {
 
     const handleFiles = (files) => {
         let invalidFiles = [];
-        let detectedStrap = "";
-        let detectedFrac = "";
 
         Array.from(files).forEach(file => {
             const fileName = file.name.toLowerCase();
-            if (fileName.endsWith('.csv')) {
-                setStrappingFile(file);
+            
+            if (fileName.match(/\.(csv|xls|xlsx|html|htm)$/)) {
                 const reader = new FileReader();
-                reader.onload = (ev) => { setStrappingRaw(ev.target.result); };
+                reader.onload = (ev) => { 
+                    const content = ev.target.result;
+                    const textLower = content.toLowerCase();
+                    
+                    const isCSV = fileName.endsWith('.csv');
+                    const hasDari = textLower.includes('dari') && textLower.includes('sampai');
+                    
+                    if (isCSV || !hasDari) {
+                        setStrappingFile(file);
+                        setStrappingRaw(content);
+                        const d = extractTankName(file.name);
+                        if (d) setTankName(prev => prev || d);
+                    } else {
+                        setFractionFile(file);
+                        setFractionRaw(content);
+                        const d = extractTankName(file.name);
+                        if (d) setTankName(prev => prev || d);
+                    }
+                };
                 reader.readAsText(file);
-                const d = extractTankName(file.name);
-                if (d) detectedStrap = d;
-            } else if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx') || fileName.endsWith('.html') || fileName.endsWith('.htm')) {
-                setFractionFile(file);
-                const reader = new FileReader();
-                reader.onload = (ev) => { setFractionRaw(ev.target.result); };
-                reader.readAsText(file);
-                const d = extractTankName(file.name);
-                if (d) detectedFrac = d;
             } else {
                 invalidFiles.push(file.name);
             }
         });
-
-        if (detectedStrap) setTankName(detectedStrap);
-        else if (detectedFrac) setTankName(detectedFrac);
 
         if (invalidFiles.length > 0) {
             setUploadError(`Format tidak sesuai: ${invalidFiles.join(', ')}. Gunakan CSV (.csv) atau Excel/HTML (.xls, .xlsx, .html).`);
@@ -104,29 +109,61 @@ export default function CombineTank() {
 
     const yieldToMain = () => new Promise(resolve => setTimeout(resolve, 15));
 
-    const parseStrapping = (csvText) => {
-        const lines = csvText.split('\n');
+    const parseStrapping = (text) => {
         const map = new Map();
         let lastCm = -1;
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
-            const parts = line.split(/[;,]/);
-            if (parts.length >= 2) {
-                const rawCm = parts[0].trim();
-                const rawVol = parts[1].trim();
-                
-                if (/^\d+(\.\d+)?$/.test(rawCm) && /^\d+(\.\d+)?$/.test(rawVol)) {
-                    const cm = parseFloat(rawCm);
-                    const vol = parseFloat(rawVol);
-                    if (cm < 10000 && cm > lastCm) {
+        let tankNo = "";
+
+        if (text.trim().toLowerCase().startsWith('<table') || text.toLowerCase().includes('<th')) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(text, 'text/html');
+            const rows = doc.querySelectorAll('tr');
+            
+            rows.forEach(row => {
+                const cols = row.querySelectorAll('td, th');
+                if (cols.length >= 2) {
+                    const rowTexts = Array.from(cols).map(c => (c.textContent || '').trim().toLowerCase());
+                    if (rowTexts.includes('tinggi')) return; 
+                    
+                    let tinggiStr = (cols[cols.length - 2].textContent || '').trim();
+                    let volStr = (cols[cols.length - 1].textContent || '').trim();
+                    
+                    const cm = parseFloat(tinggiStr.replace(/,/g, ''));
+                    const vol = parseFloat(volStr.replace(/,/g, ''));
+                    
+                    if (!isNaN(cm) && !isNaN(vol) && cm < 10000 && cm > lastCm) {
                         map.set(cm, vol);
                         lastCm = cm;
+                        
+                        if (!tankNo && cols.length >= 4) {
+                            const possibleTank = (cols[1].textContent || '').trim();
+                            if (possibleTank.match(/\d+T\d+/i)) tankNo = possibleTank;
+                        }
+                    }
+                }
+            });
+        } else {
+            const lines = text.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                const parts = line.split(/[;,]/);
+                if (parts.length >= 2) {
+                    const rawCm = parts[0].trim();
+                    const rawVol = parts[1].trim();
+                    
+                    if (/^\d+(\.\d+)?$/.test(rawCm) && /^\d+(\.\d+)?$/.test(rawVol)) {
+                        const cm = parseFloat(rawCm);
+                        const vol = parseFloat(rawVol);
+                        if (cm < 10000 && cm > lastCm) {
+                            map.set(cm, vol);
+                            lastCm = cm;
+                        }
                     }
                 }
             }
         }
-        return map;
+        return { map, tankNo };
     };
 
     const parseFraction = (htmlText) => {
@@ -138,12 +175,12 @@ export default function CombineTank() {
         rows.forEach(row => {
             const cols = row.querySelectorAll('td, th');
             if (cols.length >= 6) {
-                const rowTexts = Array.from(cols).map(c => c.innerText.trim().toLowerCase());
+                const rowTexts = Array.from(cols).map(c => (c.textContent || '').trim().toLowerCase());
                 if (rowTexts.includes('dari')) return;
-                let dariStr = cols[2].innerText.trim();
-                let sampaiStr = cols[3].innerText.trim();
-                let tinggiStr = cols[4].innerText.trim();
-                let volStr = cols[5].innerText.trim();
+                let dariStr = (cols[2].textContent || '').trim();
+                let sampaiStr = (cols[3].textContent || '').trim();
+                let tinggiStr = (cols[4].textContent || '').trim();
+                let volStr = (cols[5].textContent || '').trim();
                 
                 const dari = parseFloat(dariStr.replace(/,/g, ''));
                 const sampai = parseFloat(sampaiStr.replace(/,/g, ''));
@@ -178,24 +215,42 @@ export default function CombineTank() {
             setProgress(5);
             setProgressText("Membaca File Strapping...");
             await yieldToMain();
-            const strappingMap = parseStrapping(strappingRaw);
-
-            if (strappingMap.size === 0) throw new Error("Data Strapping kosong atau format tidak sesuai (Tinggi;Volume).");
+            
+            let strappingMap = new Map();
+            let strapTankNo = "";
+            
+            if (strappingRaw) {
+                const parsedStrap = parseStrapping(strappingRaw);
+                strappingMap = parsedStrap.map;
+                strapTankNo = parsedStrap.tankNo;
+                if (strappingMap.size === 0) {
+                    throw new Error("Data Strapping kosong atau format tidak sesuai (Tinggi;Volume).");
+                }
+            }
 
             setProgress(15);
             setProgressText("Membaca File Fraction...");
             await yieldToMain();
-            const { rules: fractionRules, tankNo } = parseFraction(fractionRaw);
-            if (tankNo) {
-                setTankName(tankNo);
-            } else {
-                const detected = extractTankName(strappingFile?.name || "") || extractTankName(fractionFile?.name || "");
-                if (detected) setTankName(detected);
-            }
             
-            if (fractionRules.length === 0) {
-                throw new Error("Data Fraction kosong atau format tidak sesuai (dari;sampai;tinggi;volume). Pastikan formatnya benar.");
+            let fractionRules = [];
+            let fracTankNo = "";
+            
+            if (fractionRaw) {
+                const parsedFrac = parseFraction(fractionRaw);
+                fractionRules = parsedFrac.rules;
+                fracTankNo = parsedFrac.tankNo;
+                
+                if (fractionRules.length === 0) {
+                    throw new Error("Data Fraction kosong atau format tidak sesuai (dari;sampai;tinggi;volume). Pastikan formatnya benar.");
+                }
             }
+
+            if (!strappingRaw && fractionRules.length === 0) {
+                throw new Error("Tidak ada data yang valid untuk diproses.");
+            }
+
+            let finalTankName = strapTankNo || fracTankNo || extractTankName(strappingFile?.name || "") || extractTankName(fractionFile?.name || "");
+            if (finalTankName) setTankName(finalTankName);
             
             setProgress(25);
             setProgressText("Mempersiapkan indeks data...");
@@ -224,6 +279,12 @@ export default function CombineTank() {
                 if (cm < minCm) minCm = cm;
                 if (cm > maxCm) maxCm = cm;
             }
+            if (strappingMap.size === 0 && fractionRules.length > 0) {
+                fractionRules.forEach(r => {
+                    if (r.minCm < minCm) minCm = r.minCm;
+                    if (r.maxCm > maxCm) maxCm = r.maxCm;
+                });
+            }
 
             const results = [];
             const chunkSize = 40; 
@@ -236,8 +297,9 @@ export default function CombineTank() {
                 const endCm = Math.min(startCm + chunkSize - 1, maxCm);
                 
                 for (let cm = startCm; cm <= endCm; cm++) {
-                    if (strappingMap.has(cm)) {
-                        const baseVolume = strappingMap.get(cm);
+                    // Only process if cm is in strapping map OR if we are processing fraction-only
+                    if (strappingMap.has(cm) || strappingMap.size === 0) {
+                        const baseVolume = strappingMap.has(cm) ? strappingMap.get(cm) : 0;
                         const cincinInfo = fractionLookup[cm];
                         const cincinNum = cincinInfo ? cincinInfo.cincinNumber : '-';
                         
@@ -251,7 +313,7 @@ export default function CombineTank() {
                             cincin: cincinNum
                         });
                         
-                        if (cm < maxCm) {
+                        if (cm < maxCm && fractionRules.length > 0) {
                             const cmFraction = cincinInfo ? cincinInfo.offsetMap : {};
                             for (let mm = 1; mm <= 9; mm++) {
                                 const addVol = cmFraction[mm] || 0;
@@ -388,18 +450,64 @@ export default function CombineTank() {
         }).filter(d => d.delta_vol > 0);
         if (deltaData.length === 0) return [];
         
-        const sumDelta = deltaData.reduce((acc, curr) => acc + curr.delta_vol, 0);
-        const avgDelta = sumDelta / deltaData.length;
+        const anomalies = [];
+        const windowSize = 5;
         
-        return deltaData.filter(d => {
-            const devRatio = Math.abs(d.delta_vol - avgDelta) / (avgDelta || 1);
-            const devAbs = Math.abs(d.delta_vol - avgDelta);
-            return devRatio > 0.15 && devAbs > 50;
-        }).map(d => ({
-            ...d,
-            devRatio: Math.abs(d.delta_vol - avgDelta) / (avgDelta || 1)
-        }));
+        for (let i = 0; i < deltaData.length; i++) {
+            const d = deltaData[i];
+            let neighbors = [];
+            for (let j = Math.max(0, i - windowSize); j <= Math.min(deltaData.length - 1, i + windowSize); j++) {
+                if (i !== j) {
+                    neighbors.push(deltaData[j].delta_vol);
+                }
+            }
+            
+            let localMedian = d.delta_vol;
+            if (neighbors.length > 0) {
+                neighbors.sort((a, b) => a - b);
+                const mid = Math.floor(neighbors.length / 2);
+                localMedian = neighbors.length % 2 !== 0 ? neighbors[mid] : (neighbors[mid - 1] + neighbors[mid]) / 2;
+            }
+
+            const devRatio = Math.abs(d.delta_vol - localMedian) / (localMedian || 1);
+            const devAbs = Math.abs(d.delta_vol - localMedian);
+            
+            if (devRatio > 0.15 && devAbs > 50) {
+                anomalies.push({
+                    ...d,
+                    devRatio,
+                    localAvg: localMedian
+                });
+            }
+        }
+        return anomalies;
     }, [combinedData]);
+
+    const requestSort = (key) => {
+        let direction = 'asc';
+        if (anomalySort.key === key && anomalySort.direction === 'asc') {
+            direction = 'desc';
+        }
+        setAnomalySort({ key, direction });
+    };
+
+    const sortedAnomalyData = useMemo(() => {
+        let sortableItems = [...anomalyData];
+        if (anomalySort.key !== null) {
+            sortableItems.sort((a, b) => {
+                let valA = a[anomalySort.key];
+                let valB = b[anomalySort.key];
+                if (anomalySort.key === 'totalVolume') {
+                     valA = (combinedData.find(c => c.level_mm === a.level_mm) || {}).totalVolume || 0;
+                     valB = (combinedData.find(c => c.level_mm === b.level_mm) || {}).totalVolume || 0;
+                }
+                if (valA < valB) return anomalySort.direction === 'asc' ? -1 : 1;
+                if (valA > valB) return anomalySort.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+        return sortableItems;
+    }, [anomalyData, anomalySort, combinedData]);
 
     const drawChart = useCallback(() => {
         const canvas = canvasRef.current;
@@ -425,10 +533,24 @@ export default function CombineTank() {
         const sumDelta = deltaData.reduce((acc, curr) => acc + curr.delta_vol, 0);
         const avgDelta = sumDelta / deltaData.length;
 
-        // Detect anomalies (>15% deviation from average AND >50L absolute difference)
-        deltaData.forEach(d => {
-            const devRatio = Math.abs(d.delta_vol - avgDelta) / (avgDelta || 1);
-            const devAbs = Math.abs(d.delta_vol - avgDelta);
+        // Detect anomalies using local moving average (handles spherical/bullet tanks gracefully)
+        const windowSize = 5;
+        deltaData.forEach((d, i) => {
+            let neighbors = [];
+            for (let j = Math.max(0, i - windowSize); j <= Math.min(deltaData.length - 1, i + windowSize); j++) {
+                if (i !== j) {
+                    neighbors.push(deltaData[j].delta_vol);
+                }
+            }
+            let localMedian = d.delta_vol;
+            if (neighbors.length > 0) {
+                neighbors.sort((a, b) => a - b);
+                const mid = Math.floor(neighbors.length / 2);
+                localMedian = neighbors.length % 2 !== 0 ? neighbors[mid] : (neighbors[mid - 1] + neighbors[mid]) / 2;
+            }
+            
+            const devRatio = Math.abs(d.delta_vol - localMedian) / (localMedian || 1);
+            const devAbs = Math.abs(d.delta_vol - localMedian);
             d.isAnomaly = devRatio > 0.15 && devAbs > 50; 
         });
 
@@ -452,10 +574,14 @@ export default function CombineTank() {
         const dataForXBounds = visibleDeltaData.length > 0 ? visibleDeltaData : deltaData;
         
         let minDeltaDraw = 0;
-        let maxDeltaDraw = Math.max(...dataForXBounds.map(d => d.delta_vol));
+        
+        const normalData = dataForXBounds.filter(d => !d.isAnomaly);
+        let maxDeltaDraw = normalData.length > 0 ? Math.max(...normalData.map(d => d.delta_vol)) : Math.max(...dataForXBounds.map(d => d.delta_vol));
+        
+        // Add 10% margin so the cylinder/anomaly doesn't touch the edge
+        maxDeltaDraw = maxDeltaDraw + (maxDeltaDraw * 0.1);
 
         if (chartMode === 'zoom') {
-            const normalData = dataForXBounds.filter(d => !d.isAnomaly);
             if (normalData.length > 0) {
                 const normalMax = Math.max(...normalData.map(d => d.delta_vol));
                 const normalMin = Math.min(...normalData.map(d => d.delta_vol));
@@ -464,8 +590,10 @@ export default function CombineTank() {
                 maxDeltaDraw = normalMax + range * 0.1;
             } else {
                 const fallbackMin = Math.min(...dataForXBounds.map(d => d.delta_vol));
-                const range = maxDeltaDraw - fallbackMin;
+                const fallbackMax = Math.max(...dataForXBounds.map(d => d.delta_vol));
+                const range = fallbackMax - fallbackMin;
                 minDeltaDraw = Math.max(0, fallbackMin - range * 0.1);
+                maxDeltaDraw = fallbackMax + range * 0.1;
             }
         }
 
@@ -474,8 +602,8 @@ export default function CombineTank() {
         const paddingX = 80;
 
         // Grid lines Y (Level)
-        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-        ctx.fillStyle = '#94a3b8';
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.fillStyle = '#64748b';
         ctx.font = '10px Inter';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
@@ -542,7 +670,7 @@ export default function CombineTank() {
         // Title
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillStyle = '#f8fafc';
+        ctx.fillStyle = '#334155';
         ctx.font = 'bold 12px Inter';
         ctx.fillText("Bentuk Dinding Tangki (Δ Volume per mm)", width/2, 10);
         
@@ -561,38 +689,47 @@ export default function CombineTank() {
 
         ctx.moveTo(width / 2, getY(minLevel));
         deltaData.forEach(d => {
-            if (!d.isAnomaly) ctx.lineTo(width / 2 - getXOffset(d.delta_vol), Math.max(paddingY, Math.min(height - paddingY, getY(d.level_mm))));
+            ctx.lineTo(width / 2 - getXOffset(d.delta_vol), Math.max(paddingY, Math.min(height - paddingY, getY(d.level_mm))));
         });
         for (let i = deltaData.length - 1; i >= 0; i--) {
             const d = deltaData[i];
-            if (!d.isAnomaly) ctx.lineTo(width / 2 + getXOffset(d.delta_vol), Math.max(paddingY, Math.min(height - paddingY, getY(d.level_mm))));
+            ctx.lineTo(width / 2 + getXOffset(d.delta_vol), Math.max(paddingY, Math.min(height - paddingY, getY(d.level_mm))));
         }
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
-        // Draw Anomalies (Warning Markers)
-        ctx.fillStyle = '#ef4444'; // Red
+        // Draw Anomalies (Warning Markers & Highlight)
         deltaData.forEach((d) => {
             if (d.isAnomaly) {
                 const y = Math.max(paddingY, Math.min(height - paddingY, getY(d.level_mm)));
+                const offset = getXOffset(d.delta_vol);
+                
                 // Draw a small red dot/marker near the Y axis
+                ctx.fillStyle = '#ef4444'; // Red
                 ctx.beginPath();
                 ctx.arc(paddingX - 40, y, 4, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Draw a subtle line across the tank instead of a thick red spike
+                // Highlight the actual anomaly on the tank silhouette
                 ctx.beginPath();
-                ctx.strokeStyle = 'rgba(239, 68, 68, 0.15)';
-                ctx.moveTo(paddingX, y);
-                ctx.lineTo(width - paddingX, y);
+                ctx.strokeStyle = 'rgba(239, 68, 68, 0.7)';
+                ctx.lineWidth = 2;
+                ctx.moveTo(width / 2 - offset, y);
+                ctx.lineTo(width / 2 + offset, y);
                 ctx.stroke();
+
+                // Draw red dots on the edges of the silhouette
+                ctx.beginPath();
+                ctx.arc(width / 2 - offset, y, 3, 0, Math.PI * 2);
+                ctx.arc(width / 2 + offset, y, 3, 0, Math.PI * 2);
+                ctx.fill();
             }
         });
 
         // Center line
         ctx.beginPath();
-        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.strokeStyle = '#e2e8f0';
         ctx.setLineDash([5, 5]);
         ctx.moveTo(width / 2, height - paddingY);
         ctx.lineTo(width / 2, paddingY);
@@ -608,6 +745,18 @@ export default function CombineTank() {
             return () => window.removeEventListener('resize', drawChart);
         }
     }, [combinedData, isProcessing, drawChart]);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const preventScroll = (e) => {
+            if (chartMode === 'zoom') {
+                e.preventDefault();
+            }
+        };
+        canvas.addEventListener('wheel', preventScroll, { passive: false });
+        return () => canvas.removeEventListener('wheel', preventScroll);
+    }, [chartMode]);
 
     const toggleFullscreen = () => {
         const elem = document.getElementById('chart-panel');
@@ -695,30 +844,52 @@ export default function CombineTank() {
         const ratio = (height - paddingY - y) / (height - paddingY * 2);
         const hoverLevel = minLevel + ratio * (maxLevel - minLevel);
         
-        // Binary search
-        let left = 1;
+        // Interpolate visual delta_vol and level
+        let lower = deltaData[0];
+        let upper = deltaData[deltaData.length - 1];
+        
+        for (let i = 0; i < deltaData.length - 1; i++) {
+            if (hoverLevel >= deltaData[i].level_mm && hoverLevel <= deltaData[i+1].level_mm) {
+                lower = deltaData[i];
+                upper = deltaData[i+1];
+                break;
+            }
+        }
+        
+        let exactDelta = lower.delta_vol;
+        if (upper.level_mm !== lower.level_mm) {
+            const t = (hoverLevel - lower.level_mm) / (upper.level_mm - lower.level_mm);
+            exactDelta = lower.delta_vol + t * (upper.delta_vol - lower.delta_vol);
+        }
+        
+        // Find corresponding volume from combinedData using binary search for closest level
+        let bestVol = 0;
+        let left = 0;
         let right = combinedData.length - 1;
-        let bestIdx = 1;
+        let closestDist = Infinity;
         
         while (left <= right) {
             const mid = Math.floor((left + right) / 2);
-            if (combinedData[mid].level_mm === Math.round(hoverLevel)) {
-                bestIdx = mid; break;
+            const dist = Math.abs(combinedData[mid].level_mm - hoverLevel);
+            if (dist < closestDist) {
+                closestDist = dist;
+                bestVol = combinedData[mid].totalVolume;
+            }
+            if (combinedData[mid].level_mm === hoverLevel) {
+                break;
             } else if (combinedData[mid].level_mm < hoverLevel) {
-                bestIdx = mid; left = mid + 1;
+                left = mid + 1;
             } else {
                 right = mid - 1;
             }
         }
         
-        const delta = combinedData[bestIdx].totalVolume - combinedData[bestIdx - 1].totalVolume;
-        
         setTooltipInfo({
             x: e.clientX - rect.left,
             y: e.clientY - rect.top,
-            level: combinedData[bestIdx].level_mm,
-            delta: delta.toFixed(2),
-            volume: combinedData[bestIdx].totalVolume
+            level: Math.round(hoverLevel),
+            delta: exactDelta.toFixed(2),
+            volume: bestVol
         });
     };
 
@@ -726,7 +897,7 @@ export default function CombineTank() {
         <div style={styles.container}>
             <header style={styles.header}>
                 <h1 style={styles.title}>
-                    Strapping & Fraction Combiner 
+                    Strapping & Fraction Combiner {tankName && ` - Tangki ${tankName}`}
                     <span style={{ 
                         fontSize: '0.9rem', 
                         verticalAlign: 'middle', 
@@ -824,10 +995,10 @@ export default function CombineTank() {
                             <button 
                                 style={{ 
                                     ...styles.btnProcess, 
-                                    ...(!(strappingRaw && fractionRaw) || isProcessing ? styles.btnDisabled : {}),
+                                    ...(!(strappingRaw || fractionRaw) || isProcessing ? styles.btnDisabled : {}),
                                     flex: 2
                                 }}
-                                disabled={!(strappingRaw && fractionRaw) || isProcessing}
+                                disabled={!(strappingRaw || fractionRaw) || isProcessing}
                                 onClick={handleProcess}
                             >
                                 {isProcessing ? 'Memproses...' : (combinedData.length > 0 ? 'Proses Ulang' : 'Gabungkan Data')}
@@ -880,14 +1051,22 @@ export default function CombineTank() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {fractionPreview.map((row, idx) => (
-                                            <tr key={idx} style={styles.tr}>
-                                                <td style={styles.tdPreview}>{row.minCm}</td>
-                                                <td style={styles.tdPreview}>{row.maxCm}</td>
-                                                <td style={styles.tdPreview}>{row.offset_mm}</td>
-                                                <td style={styles.tdPreview}>{row.volume_tambahan.toFixed(2)}</td>
+                                        {fractionPreview.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="4" style={{...styles.tdPreview, textAlign: 'center', color: '#94a3b8'}}>
+                                                    Tidak ada data Fraction (Penggabungan diabaikan)
+                                                </td>
                                             </tr>
-                                        ))}
+                                        ) : (
+                                            fractionPreview.map((row, idx) => (
+                                                <tr key={idx} style={styles.tr}>
+                                                    <td style={styles.tdPreview}>{row.minCm}</td>
+                                                    <td style={styles.tdPreview}>{row.maxCm}</td>
+                                                    <td style={styles.tdPreview}>{row.offset_mm}</td>
+                                                    <td style={styles.tdPreview}>{row.volume_tambahan.toFixed(2)}</td>
+                                                </tr>
+                                            ))
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
@@ -899,8 +1078,8 @@ export default function CombineTank() {
                 <div style={styles.rightCol}>
                     {combinedData.length === 0 && !isProcessing && (
                         <div style={styles.welcomePanel}>
-                            <h3 style={{ margin: '0 0 0.5rem 0', color: '#60a5fa' }}>Unggah berkas untuk memulai</h3>
-                            <p style={{ margin: 0, color: '#94a3b8' }}>Unggah file strapping (.csv) dan file fraction (.xls/xlsx/html) di sebelah kiri, kemudian klik tombol proses.</p>
+                            <h3 style={{ margin: '0 0 0.5rem 0', color: '#2563eb' }}>Unggah berkas untuk memulai</h3>
+                            <p style={{ margin: 0, color: '#64748b' }}>Unggah file strapping (.csv) dan file fraction (.xls/xlsx/html) di sebelah kiri, kemudian klik tombol proses.</p>
                         </div>
                     )}
 
@@ -910,9 +1089,14 @@ export default function CombineTank() {
                             <div id="chart-panel" style={styles.glassPanel}>
                                 <style>{`
                                     #chart-panel:fullscreen {
-                                        background: #0f172a !important;
+                                        background: #f8fafc !important;
                                         padding: 2rem !important;
-                                        overflow-y: auto !important;
+                                        display: flex !important;
+                                        flex-direction: column !important;
+                                    }
+                                    #chart-panel:fullscreen #chart-container {
+                                        flex: 1 1 auto !important;
+                                        height: 100% !important;
                                     }
                                 `}</style>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -938,7 +1122,7 @@ export default function CombineTank() {
                                         </button>
                                     </div>
                                 </div>
-                                <div style={{
+                                <div id="chart-container" style={{
                                     ...styles.chartContainer,
                                     overflow: 'hidden'
                                 }}>
@@ -973,19 +1157,20 @@ export default function CombineTank() {
                                                 position: 'absolute',
                                                 left: tooltipInfo.x + 15,
                                                 top: tooltipInfo.y - 15,
-                                                background: 'rgba(15, 23, 42, 0.95)',
-                                                border: '1px solid rgba(255,255,255,0.2)',
+                                                background: 'rgba(255, 255, 255, 0.95)',
+                                                border: '1px solid #e2e8f0',
                                                 padding: '8px 12px',
                                             borderRadius: '6px',
                                             pointerEvents: 'none',
                                             fontSize: '0.85rem',
                                             zIndex: 100,
-                                            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                                            whiteSpace: 'nowrap'
+                                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                            whiteSpace: 'nowrap',
+                                            color: '#334155'
                                         }}>
-                                            <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Level: <strong style={{ color: 'white' }}>{tooltipInfo.level.toLocaleString('id-ID')} mm</strong></div>
-                                            <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Δ Volume: <strong style={{ color: '#ef4444' }}>{tooltipInfo.delta.toLocaleString('id-ID', {maximumFractionDigits:2})} L</strong></div>
-                                            <div style={{ color: '#94a3b8' }}>Total Vol: <strong style={{ color: '#10b981' }}>{tooltipInfo.volume.toLocaleString('id-ID', {maximumFractionDigits:2})} L</strong></div>
+                                            <div style={{ color: '#64748b', marginBottom: '4px' }}>Level: <strong style={{ color: '#0f172a' }}>{tooltipInfo.level.toLocaleString('id-ID')} mm</strong></div>
+                                            <div style={{ color: '#64748b', marginBottom: '4px' }}>Δ Volume: <strong style={{ color: '#ef4444' }}>{tooltipInfo.delta.toLocaleString('id-ID', {maximumFractionDigits:2})} L</strong></div>
+                                            <div style={{ color: '#64748b' }}>Total Vol: <strong style={{ color: '#10b981' }}>{tooltipInfo.volume.toLocaleString('id-ID', {maximumFractionDigits:2})} L</strong></div>
                                         </div>
                                         </>
                                     )}
@@ -993,38 +1178,71 @@ export default function CombineTank() {
                             </div>
 
                             {/* Anomaly Table Panel */}
-                            {anomalyData.length > 0 && (
-                                <div style={styles.glassPanel}>
-                                    <h3 style={{ ...styles.panelTitle, margin: '0 0 1rem 0', color: '#ef4444' }}>
-                                        ⚠️ Daftar Anomali (Cacat Dinding Terdeteksi)
-                                    </h3>
-                                    <div style={{ ...styles.tableContainer, maxHeight: '250px' }}>
+                            <div style={styles.glassPanel}>
+                                <h3 style={{ ...styles.panelTitle, margin: '0 0 1rem 0', color: anomalyData.length > 0 ? '#ef4444' : '#10b981' }}>
+                                    {anomalyData.length > 0 ? '⚠️ Daftar Anomali (Cacat Dinding Terdeteksi)' : '✅ Tidak Ada Anomali Signifikan'}
+                                </h3>
+                                {anomalyData.length > 0 ? (
+                                    <div style={styles.tableContainer}>
                                         <table style={styles.table}>
                                             <thead style={styles.thead}>
                                                 <tr>
                                                     <th style={{...styles.th, width: '60px'}}>#</th>
-                                                    <th style={styles.th}>Level (mm)</th>
-                                                    <th style={styles.th}>Δ Volume (L)</th>
-                                                    <th style={styles.th}>Penyimpangan</th>
+                                                    <th style={{...styles.th, cursor: 'pointer'}} onClick={() => requestSort('level_mm')}>
+                                                        Level (mm) {anomalySort.key === 'level_mm' ? (anomalySort.direction === 'asc' ? '↑' : '↓') : ''}
+                                                    </th>
+                                                    <th style={{...styles.th, cursor: 'pointer'}} onClick={() => requestSort('totalVolume')}>
+                                                        Total Vol (L) {anomalySort.key === 'totalVolume' ? (anomalySort.direction === 'asc' ? '↑' : '↓') : ''}
+                                                    </th>
+                                                    <th style={{...styles.th, cursor: 'pointer'}} onClick={() => requestSort('delta_vol')}>
+                                                        Δ Aktual (L) {anomalySort.key === 'delta_vol' ? (anomalySort.direction === 'asc' ? '↑' : '↓') : ''}
+                                                    </th>
+                                                    <th style={{...styles.th, cursor: 'pointer'}} onClick={() => requestSort('devRatio')}>
+                                                        Penyimpangan {anomalySort.key === 'devRatio' ? (anomalySort.direction === 'asc' ? '↑' : '↓') : ''}
+                                                    </th>
+                                                    <th style={styles.th}>Aksi</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {anomalyData.map((d, i) => (
+                                                {sortedAnomalyData.map((d, i) => {
+                                                    // Find total volume for this anomaly level
+                                                    const match = combinedData.find(c => c.level_mm === d.level_mm);
+                                                    const totalVol = match ? match.totalVolume : 0;
+                                                    
+                                                    return (
                                                     <tr key={d.level_mm} style={{ ...styles.tr, background: 'rgba(239, 68, 68, 0.05)' }}>
                                                         <td style={styles.td}>{i + 1}</td>
                                                         <td style={styles.td}>{formatLevel(d.level_mm)}</td>
-                                                        <td style={{...styles.td, color: '#ef4444', fontWeight: '500'}}>{d.delta_vol.toLocaleString('id-ID', {maximumFractionDigits:2})}</td>
-                                                        <td style={{...styles.td, color: '#ef4444'}}>{(d.devRatio * 100).toFixed(1)}% (+{Math.abs(d.delta_vol - (d.delta_vol / (1 + d.devRatio))).toFixed(1)} L)</td>
+                                                        <td style={styles.td}>{totalVol.toLocaleString('id-ID', {maximumFractionDigits:2})}</td>
+                                                        <td style={{...styles.td, color: '#ef4444', fontWeight: '600'}}>{d.delta_vol.toLocaleString('id-ID', {maximumFractionDigits:2})}</td>
+                                                        <td style={{...styles.td, color: '#ef4444'}}>{(d.devRatio * 100).toFixed(1)}% (+{Math.abs(d.delta_vol - (d.localAvg || 0)).toFixed(1)} L)</td>
+                                                        <td style={styles.td}>
+                                                            <button 
+                                                                style={{ padding: '0.25rem 0.5rem', background: 'transparent', color: '#3b82f6', border: '1px solid #3b82f6', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600' }}
+                                                                title="Lihat Detail"
+                                                                onClick={() => {
+                                                                    setSearchQuery(d.level_mm.toString());
+                                                                    const mainTable = document.getElementById('main-table-panel');
+                                                                    if (mainTable) mainTable.scrollIntoView({ behavior: 'smooth' });
+                                                                }}
+                                                            >
+                                                                🔍 Lihat
+                                                            </button>
+                                                        </td>
                                                     </tr>
-                                                ))}
+                                                )})}
                                             </tbody>
                                         </table>
                                     </div>
-                                </div>
-                            )}
+                                ) : (
+                                    <div style={{ padding: '1.5rem', background: '#f0fdf4', color: '#166534', borderRadius: '8px', textAlign: 'center', border: '1px solid #bbf7d0' }}>
+                                        Seluruh data tampak normal. Tidak ada lonjakan volume yang signifikan antar mm pada tangki ini.
+                                    </div>
+                                )}
+                            </div>
 
                             {/* Main Table Panel */}
-                            <div style={styles.glassPanel}>
+                            <div id="main-table-panel" style={styles.glassPanel}>
                                 <div style={styles.toolbar}>
                                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                         <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Nama Tangki:</span>
@@ -1058,33 +1276,33 @@ export default function CombineTank() {
                                             <tr>
                                                 <th style={styles.th}>Level (mm)</th>
                                                 <th style={styles.th}>Level Strapping (cm)</th>
-                                                <th style={styles.th}>Level Fraction (mm)</th>
+                                                {fractionPreview.length > 0 && <th style={styles.th}>Level Fraction (mm)</th>}
                                                 <th style={styles.th}>Vol Strapping (L)</th>
-                                                <th style={styles.th}>Vol Fraction (L)</th>
+                                                {fractionPreview.length > 0 && <th style={styles.th}>Vol Fraction (L)</th>}
                                                 <th style={styles.th}>Total Volume (L)</th>
                                                 <th style={styles.th}>Delta Volume (L)</th>
-                                                <th style={styles.th}>No Cincin</th>
+                                                {fractionPreview.length > 0 && <th style={styles.th}>No Cincin</th>}
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {filteredData.length === 0 && (
-                                                <tr><td colSpan="8" style={styles.tdCenter}>Data tidak ditemukan.</td></tr>
+                                                <tr><td colSpan={fractionPreview.length > 0 ? "8" : "5"} style={styles.tdCenter}>Data tidak ditemukan.</td></tr>
                                             )}
                                             {filteredData.slice(0, 300).map((row, idx) => (
                                                 <tr key={idx} style={styles.tr}>
                                                     <td style={styles.td}>{row.level_mm}</td>
                                                     <td style={styles.td}>{row.cm}</td>
-                                                    <td style={styles.td}>{row.mm}</td>
+                                                    {fractionPreview.length > 0 && <td style={styles.td}>{row.mm}</td>}
                                                     <td style={styles.td}>{formatVolume(row.baseVolume)}</td>
-                                                    <td style={styles.td}>{formatVolume(row.addVol)}</td>
+                                                    {fractionPreview.length > 0 && <td style={styles.td}>{formatVolume(row.addVol)}</td>}
                                                     <td style={styles.tdSuccess}>{formatVolume(row.totalVolume)}</td>
                                                     <td style={styles.td}>{formatVolume(row.delta)}</td>
-                                                    <td style={{ ...styles.td, textAlign: 'center' }}>{row.cincin}</td>
+                                                    {fractionPreview.length > 0 && <td style={{ ...styles.td, textAlign: 'center' }}>{row.cincin}</td>}
                                                 </tr>
                                             ))}
                                             {filteredData.length > 300 && (
                                                 <tr>
-                                                    <td colSpan="8" style={styles.tdCenter}>
+                                                    <td colSpan={fractionPreview.length > 0 ? "8" : "5"} style={styles.tdCenter}>
                                                         Menampilkan 300 dari total {filteredData.length} baris.<br/>
                                                         <em style={{opacity:0.7}}>Gunakan kotak pencarian di atas untuk mencari angka spesifik.</em>
                                                     </td>
@@ -1120,21 +1338,19 @@ const styles = {
         minWidth: 0,
     },
     glassPanelCompact: {
-        background: 'rgba(30, 41, 59, 0.7)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
+        background: '#ffffff',
+        border: '1px solid #e2e8f0',
         borderRadius: '12px',
         padding: '1.25rem',
-        boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
     },
     panelTitle: {
-        color: '#f8fafc',
+        color: '#1e293b',
         fontSize: '1.1rem',
         fontWeight: '600',
         marginTop: 0,
         marginBottom: '1rem',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        borderBottom: '1px solid #e2e8f0',
         paddingBottom: '0.5rem',
     },
     uploadGridCompact: {
@@ -1144,25 +1360,25 @@ const styles = {
         marginBottom: '1rem',
     },
     fileDropCompact: {
-        border: '2px dashed rgba(255, 255, 255, 0.15)',
+        border: '2px dashed #cbd5e1',
         borderRadius: '8px',
         padding: '1rem',
         textAlign: 'center',
         transition: 'all 0.3s ease',
         cursor: 'pointer',
         position: 'relative',
-        background: 'rgba(255,255,255,0.01)',
+        background: '#f8fafc',
     },
     fileLabelCompact: {
         fontWeight: '600',
         fontSize: '0.9rem',
         display: 'block',
         pointerEvents: 'none',
-        color: '#f8fafc',
+        color: '#334155',
     },
     fileHintCompact: {
         fontSize: '0.75rem',
-        color: '#94a3b8',
+        color: '#64748b',
         margin: '0.25rem 0 0 0',
         pointerEvents: 'none',
     },
@@ -1176,7 +1392,7 @@ const styles = {
         whiteSpace: 'nowrap',
     },
     previewTitlePrimary: {
-        color: '#60a5fa',
+        color: '#3b82f6',
         fontSize: '0.85rem',
         fontWeight: '600',
         marginTop: 0,
@@ -1190,16 +1406,17 @@ const styles = {
         marginBottom: '0.5rem',
     },
     welcomePanel: {
-        background: 'rgba(30, 41, 59, 0.4)',
-        border: '1px dashed rgba(255, 255, 255, 0.1)',
+        background: '#ffffff',
+        border: '1px dashed #cbd5e1',
         borderRadius: '16px',
         padding: '3rem 2rem',
         textAlign: 'center',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
     },
     container: {
         fontFamily: '"Inter", sans-serif',
-        background: 'linear-gradient(135deg, #0f172a 0%, #020617 100%)',
-        color: '#f8fafc',
+        background: '#f1f5f9',
+        color: '#334155',
         minHeight: '100vh',
         padding: '2rem',
         boxSizing: 'border-box',
@@ -1211,23 +1428,19 @@ const styles = {
     title: {
         fontSize: '2.5rem',
         fontWeight: '700',
-        background: 'linear-gradient(to right, #60a5fa, #3b82f6)',
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
+        color: '#0f172a',
         margin: '0 0 0.5rem 0',
     },
     subtitle: {
-        color: '#94a3b8',
+        color: '#64748b',
         margin: 0,
     },
     glassPanel: {
-        background: 'rgba(30, 41, 59, 0.7)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
+        background: '#ffffff',
+        border: '1px solid #e2e8f0',
         borderRadius: '16px',
         padding: '2rem',
-        boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
         marginBottom: '2rem',
         maxWidth: '1200px',
         marginLeft: 'auto',
@@ -1240,18 +1453,18 @@ const styles = {
         marginBottom: '1.5rem',
     },
     fileDrop: {
-        border: '2px dashed rgba(255, 255, 255, 0.2)',
+        border: '2px dashed #cbd5e1',
         borderRadius: '12px',
         padding: '2rem',
         textAlign: 'center',
         transition: 'all 0.3s ease',
         cursor: 'pointer',
         position: 'relative',
-        background: 'rgba(255,255,255,0.02)',
+        background: '#f8fafc',
     },
     fileDropActive: {
         borderColor: '#3b82f6',
-        background: 'rgba(59, 130, 246, 0.1)',
+        background: '#eff6ff',
         transform: 'scale(1.02)',
     },
     fileInput: {
@@ -1264,10 +1477,11 @@ const styles = {
         display: 'block',
         marginBottom: '0.5rem',
         pointerEvents: 'none',
+        color: '#334155'
     },
     fileHint: {
         fontSize: '0.85rem',
-        color: '#94a3b8',
+        color: '#64748b',
         margin: 0,
         pointerEvents: 'none',
     },
@@ -1275,13 +1489,14 @@ const styles = {
         fontSize: '0.85rem',
         marginTop: '0.5rem',
         pointerEvents: 'none',
+        color: '#10b981'
     },
     btnReset: {
         padding: '1rem',
-        background: 'rgba(239, 68, 68, 0.1)',
-        border: '1px solid rgba(239, 68, 68, 0.25)',
+        background: '#fef2f2',
+        border: '1px solid #fecaca',
         borderRadius: '8px',
-        color: '#f87171',
+        color: '#ef4444',
         fontSize: '1rem',
         fontWeight: '600',
         cursor: 'pointer',
@@ -1292,7 +1507,7 @@ const styles = {
     btnProcess: {
         width: '100%',
         padding: '1rem',
-        background: 'linear-gradient(to right, #3b82f6, #2563eb)',
+        background: '#3b82f6',
         color: 'white',
         border: 'none',
         borderRadius: '8px',
@@ -1300,10 +1515,10 @@ const styles = {
         fontWeight: '600',
         cursor: 'pointer',
         transition: 'all 0.3s ease',
-        boxShadow: '0 4px 15px rgba(59, 130, 246, 0.3)',
+        boxShadow: '0 1px 3px rgba(59, 130, 246, 0.3)',
     },
     btnDisabled: {
-        background: '#475569',
+        background: '#cbd5e1',
         cursor: 'not-allowed',
         boxShadow: 'none',
         opacity: 0.7,
@@ -1314,19 +1529,19 @@ const styles = {
     progressText: {
         textAlign: 'center',
         fontSize: '0.9rem',
-        color: '#94a3b8',
+        color: '#64748b',
         marginBottom: '0.5rem',
     },
     progressContainer: {
         width: '100%',
         height: '8px',
-        background: 'rgba(255,255,255,0.1)',
+        background: '#e2e8f0',
         borderRadius: '4px',
         overflow: 'hidden',
     },
     progressBar: {
         height: '100%',
-        background: 'linear-gradient(90deg, #3b82f6, #10b981)',
+        background: '#3b82f6',
         transition: 'width 0.3s ease',
     },
     toolbar: {
@@ -1340,9 +1555,9 @@ const styles = {
     searchBox: {
         padding: '0.75rem 1rem',
         borderRadius: '8px',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        background: 'rgba(0,0,0,0.2)',
-        color: 'white',
+        border: '1px solid #cbd5e1',
+        background: '#ffffff',
+        color: '#334155',
         width: '100%',
         maxWidth: '300px',
         fontFamily: '"Inter", sans-serif',
@@ -1367,8 +1582,8 @@ const styles = {
         height: '600px',
         overflowY: 'auto',
         borderRadius: '8px',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        background: 'rgba(0,0,0,0.2)',
+        border: '1px solid #e2e8f0',
+        background: '#ffffff',
     },
     table: {
         width: '100%',
@@ -1378,20 +1593,21 @@ const styles = {
     th: {
         position: 'sticky',
         top: 0,
-        background: '#1e293b',
+        background: '#f8fafc',
         padding: '1rem',
         fontWeight: '600',
-        color: '#94a3b8',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        color: '#475569',
+        borderBottom: '1px solid #e2e8f0',
         zIndex: 10,
     },
     tr: {
-        borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+        borderBottom: '1px solid #e2e8f0',
     },
     td: {
         padding: '0.75rem 1rem',
         fontFamily: 'monospace',
         fontWeight: '500',
+        color: '#334155',
     },
     tdSuccess: {
         padding: '0.75rem 1rem',
@@ -1402,7 +1618,7 @@ const styles = {
     tdCenter: {
         padding: '1.5rem',
         textAlign: 'center',
-        color: '#94a3b8',
+        color: '#64748b',
     },
     chartWrapper: {
         display: 'flex',
@@ -1416,46 +1632,48 @@ const styles = {
     btnMode: {
         flex: 1,
         padding: '0.5rem',
-        background: 'rgba(0,0,0,0.3)',
-        color: '#94a3b8',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
+        background: '#f8fafc',
+        color: '#475569',
+        border: '1px solid #e2e8f0',
         borderRadius: '8px',
         cursor: 'pointer',
         fontWeight: '500',
         transition: 'all 0.3s',
     },
     btnModeActive: {
-        background: 'rgba(59, 130, 246, 0.2)',
-        color: '#60a5fa',
-        borderColor: '#3b82f6',
+        background: '#eff6ff',
+        color: '#3b82f6',
+        borderColor: '#bfdbfe',
     },
     chartContainer: {
-        background: 'rgba(0,0,0,0.2)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
+        background: '#ffffff',
+        border: '1px solid #e2e8f0',
         borderRadius: '8px',
         height: '560px',
         position: 'relative',
         overflow: 'hidden'
     },
-    tableContainerPreview: { maxHeight: '260px',
+    tableContainerPreview: { 
+        maxHeight: '260px',
         overflowY: 'auto',
         borderRadius: '8px',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        background: 'rgba(0,0,0,0.2)',
+        border: '1px solid #e2e8f0',
+        background: '#ffffff',
     },
     thPreview: {
         position: 'sticky',
         top: 0,
-        background: '#1e293b',
+        background: '#f8fafc',
         padding: '0.5rem 0.75rem',
         fontWeight: '600',
-        color: '#94a3b8',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        color: '#475569',
+        borderBottom: '1px solid #e2e8f0',
         fontSize: '0.85rem',
     },
     tdPreview: {
         padding: '0.5rem 0.75rem',
         fontFamily: 'monospace',
         fontSize: '0.85rem',
+        color: '#334155',
     }
 };

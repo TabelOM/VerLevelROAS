@@ -8,18 +8,18 @@
     
     <style>
         :root {
-            --bg: #0f172a;
-            --surface: rgba(30, 41, 59, 0.7);
+            --bg: #f1f5f9;
+            --surface: #ffffff;
             --primary: #3b82f6;
             --success: #10b981;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --border: rgba(255, 255, 255, 0.1);
+            --text-main: #334155;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
         }
 
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, var(--bg) 0%, #020617 100%);
+            background: var(--bg);
             color: var(--text-main);
             margin: 0;
             padding: 0;
@@ -28,41 +28,40 @@
 
         .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
         header { text-align: center; margin-bottom: 2rem; }
-        h1 { font-size: 2.5rem; font-weight: 700; background: linear-gradient(to right, #60a5fa, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem; }
+        h1 { font-size: 2.5rem; font-weight: 700; color: #0f172a; margin-bottom: 0.5rem; }
         p { color: var(--text-muted); }
 
         .glass-panel {
             background: var(--surface);
-            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
             border: 1px solid var(--border); border-radius: 16px;
-            padding: 2rem; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1); margin-bottom: 2rem;
+            padding: 2rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); margin-bottom: 2rem;
         }
 
         .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
         .file-drop {
-            border: 2px dashed var(--border); border-radius: 12px; padding: 2rem; text-align: center;
-            transition: all 0.3s ease; cursor: pointer; position: relative; background: rgba(255,255,255,0.02);
+            border: 2px dashed #cbd5e1; border-radius: 12px; padding: 2rem; text-align: center;
+            transition: all 0.3s ease; cursor: pointer; position: relative; background: #f8fafc;
         }
-        .file-drop.dragover { border-color: var(--primary); background: rgba(59, 130, 246, 0.1); transform: scale(1.02); }
+        .file-drop.dragover { border-color: var(--primary); background: #eff6ff; transform: scale(1.02); }
         .file-drop input[type="file"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-        .file-label { font-weight: 600; display: block; margin-bottom: 0.5rem; pointer-events: none; }
-        .file-status { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.5rem; pointer-events: none; }
+        .file-label { font-weight: 600; display: block; margin-bottom: 0.5rem; pointer-events: none; color: #334155; }
+        .file-status { font-size: 0.85rem; color: #10b981; margin-top: 0.5rem; pointer-events: none; }
 
-        .progress-container { width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; margin-bottom: 1rem; overflow: hidden; display: none; }
-        .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #3b82f6, #10b981); transition: width 0.3s ease; }
+        .progress-container { width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; margin-bottom: 1rem; overflow: hidden; display: none; }
+        .progress-bar { height: 100%; width: 0%; background: var(--primary); transition: width 0.3s ease; }
         .progress-text { text-align: center; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem; display: none; }
 
         .btn-process {
-            width: 100%; padding: 1rem; background: linear-gradient(to right, var(--primary), #2563eb);
+            width: 100%; padding: 1rem; background: var(--primary);
             color: white; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600;
-            cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+            cursor: pointer; transition: all 0.3s ease; box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3);
         }
         .btn-reset {
             padding: 0.75rem;
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.25);
+            background: #fef2f2;
+            border: 1px solid #fecaca;
             border-radius: 8px;
-            color: #f87171;
+            color: #ef4444;
             font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
@@ -72,39 +71,41 @@
             display: none;
         }
         .btn-reset:hover {
-            background: rgba(239, 68, 68, 0.2);
+            background: #fee2e2;
         }
-        .btn-process:disabled { background: #475569; cursor: not-allowed; box-shadow: none; opacity: 0.7; }
+        .btn-process:disabled { background: #cbd5e1; cursor: not-allowed; box-shadow: none; opacity: 0.7; }
 
         #results-area { display: none; }
         .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; gap: 1rem; }
-        .search-box { padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--border); background: rgba(0,0,0,0.2); color: white; width: 300px; outline: none; }
+        .search-box { padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid #cbd5e1; background: #ffffff; color: #334155; width: 300px; outline: none; }
         .btn-export { padding: 0.75rem 1.5rem; background: var(--success); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
 
-        .content-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 1.5rem; }
-        .table-container { height: 600px; overflow-y: auto; border-radius: 8px; border: 1px solid var(--border); background: rgba(0,0,0,0.2); }
+        /* The user wanted the anomaly table width to be the same as the main table. By putting them in a 1fr grid or standard block layout, they will match. */
+        .content-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+        
+        .table-container { height: 600px; overflow-y: auto; border-radius: 8px; border: 1px solid var(--border); background: #ffffff; }
         table { width: 100%; border-collapse: collapse; text-align: left; }
-        th { position: sticky; top: 0; background: #1e293b; padding: 1rem; font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border); z-index: 10; }
-        td { padding: 0.75rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        th { position: sticky; top: 0; background: #f8fafc; padding: 1rem; font-weight: 600; color: #475569; border-bottom: 1px solid var(--border); z-index: 10; }
+        td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); font-family: monospace; color: #334155; }
 
-        .chart-wrapper { display: flex; flexDirection: column; gap: 0.5rem; }
+        .chart-wrapper { display: flex; flex-direction: column; gap: 0.5rem; }
         .chart-controls { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
         .btn-mode {
-            flex: 1; padding: 0.5rem; background: rgba(0,0,0,0.3); color: var(--text-muted);
+            flex: 1; padding: 0.5rem; background: #f8fafc; color: #475569;
             border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-weight: 500; transition: all 0.3s;
         }
-        .btn-mode.active { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border-color: var(--primary); }
+        .btn-mode.active { background: #eff6ff; color: #3b82f6; border-color: #bfdbfe; }
 
         .chart-container {
-            background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px;
+            background: #ffffff; border: 1px solid var(--border); border-radius: 8px;
             height: 560px; position: relative; overflow: hidden;
         }
 
         #chart-tooltip {
-            position: absolute; display: none; background: rgba(15, 23, 42, 0.95);
-            border: 1px solid rgba(255,255,255,0.2); padding: 8px 12px; border-radius: 6px;
+            position: absolute; display: none; background: rgba(255, 255, 255, 0.95);
+            border: 1px solid #e2e8f0; padding: 8px 12px; border-radius: 6px;
             pointer-events: none; font-size: 0.85rem; z-index: 100;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5); white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); white-space: nowrap; color: #334155;
         }
 
         .table-container-preview {
@@ -112,15 +113,15 @@
             overflow-y: auto;
             border-radius: 8px;
             border: 1px solid var(--border);
-            background: rgba(0,0,0,0.2);
+            background: #ffffff;
         }
         .th-preview {
             position: sticky;
             top: 0;
-            background: #1e293b;
+            background: #f8fafc;
             padding: 0.5rem 0.75rem;
             font-weight: 600;
-            color: var(--text-muted);
+            color: #475569;
             border-bottom: 1px solid var(--border);
             font-size: 0.85rem;
         }
@@ -128,9 +129,9 @@
             padding: 0.5rem 0.75rem;
             font-family: monospace;
             font-size: 0.85rem;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            color: #334155;
+            border-bottom: 1px solid var(--border);
         }
-
 
         .layout-grid {
             display: grid;
@@ -335,6 +336,26 @@
                     </div>
                 </div>
 
+                <!-- Anomaly Table Panel -->
+                <div id="anomaly-panel" class="glass-panel" style="display: none; margin-bottom: 0;">
+                    <h3 class="panel-title" style="margin: 0 0 1rem 0; color: #ef4444; border: none; padding: 0;">⚠️ Daftar Anomali (Cacat Dinding Terdeteksi)</h3>
+                    <div class="table-container" style="max-height: 250px;">
+                        <table id="anomaly-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 60px;">#</th>
+                                    <th>Level (mm)</th>
+                                    <th>Total Vol (L)</th>
+                                    <th>Δ Aktual (L)</th>
+                                    <th>Δ Target (L)</th>
+                                    <th>Penyimpangan</th>
+                                </tr>
+                            </thead>
+                            <tbody id="anomaly-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <!-- Main Table Panel -->
                 <div class="glass-panel" style="margin-bottom: 0;">
                     <div class="toolbar">
@@ -350,7 +371,7 @@
 
                     <div class="table-container" style="max-height: 400px;">
                         <table id="result-table">
-                            <thead>
+                            <thead id="main-thead">
                                 <tr>
                                     <th>Level (mm)</th>
                                     <th>Level Strapping (cm)</th>
@@ -418,55 +439,53 @@
 
     function handleFiles(files) {
         let invalidFiles = [];
-        let detectedStrap = "";
-        let detectedFrac = "";
 
         Array.from(files).forEach(file => {
             const fileName = file.name.toLowerCase();
-            if (fileName.endsWith('.csv')) {
-                strappingFile = file;
-                const statusName = document.getElementById('name-strapping');
-                const statusIcon = document.getElementById('icon-strapping');
-                const statusItem = document.getElementById('status-strapping-item');
-                
-                statusName.textContent = file.name;
-                statusIcon.textContent = '✅';
-                statusItem.style.color = '#10b981';
-                document.getElementById('btn-reset').style.display = 'block';
-
+            if (fileName.match(/\.(csv|xls|xlsx|html|htm)$/)) {
                 const reader = new FileReader();
-                reader.onload = (ev) => { strappingRaw = ev.target.result; checkReady(); };
+                reader.onload = (ev) => {
+                    const content = ev.target.result;
+                    const textLower = content.toLowerCase();
+                    const isCSV = fileName.endsWith('.csv');
+                    const hasDari = textLower.includes('dari') && textLower.includes('sampai');
+                    
+                    if (isCSV || !hasDari) {
+                        strappingFile = file;
+                        const statusName = document.getElementById('name-strapping');
+                        const statusIcon = document.getElementById('icon-strapping');
+                        const statusItem = document.getElementById('status-strapping-item');
+                        
+                        statusName.textContent = file.name;
+                        statusIcon.textContent = '✅';
+                        statusItem.style.color = '#10b981';
+                        
+                        strappingRaw = content;
+                        const d = extractTankName(file.name);
+                        if (d) tankName = tankName || d;
+                    } else {
+                        fractionFile = file;
+                        const statusName = document.getElementById('name-fraction');
+                        const statusIcon = document.getElementById('icon-fraction');
+                        const statusItem = document.getElementById('status-fraction-item');
+
+                        statusName.textContent = file.name;
+                        statusIcon.textContent = '✅';
+                        statusItem.style.color = '#10b981';
+                        
+                        fractionRaw = content;
+                        const d = extractTankName(file.name);
+                        if (d) tankName = tankName || d;
+                    }
+                    
+                    document.getElementById('btn-reset').style.display = 'block';
+                    checkReady();
+                };
                 reader.readAsText(file);
-                
-                const d = extractTankName(file.name);
-                if (d) detectedStrap = d;
-            } else if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx') || fileName.endsWith('.html') || fileName.endsWith('.htm')) {
-                fractionFile = file;
-                const statusName = document.getElementById('name-fraction');
-                const statusIcon = document.getElementById('icon-fraction');
-                const statusItem = document.getElementById('status-fraction-item');
-
-                statusName.textContent = file.name;
-                statusIcon.textContent = '✅';
-                statusItem.style.color = '#10b981';
-                document.getElementById('btn-reset').style.display = 'block';
-
-                const reader = new FileReader();
-                reader.onload = (ev) => { fractionRaw = ev.target.result; checkReady(); };
-                reader.readAsText(file);
-
-                const d = extractTankName(file.name);
-                if (d) detectedFrac = d;
             } else {
                 invalidFiles.push(file.name);
             }
         });
-
-        if (detectedStrap) {
-            tankName = detectedStrap;
-        } else if (detectedFrac) {
-            tankName = detectedFrac;
-        }
 
         if (invalidFiles.length > 0) {
             uploadErrorMsg.textContent = `⚠️ Format tidak sesuai: ${invalidFiles.join(', ')}. Gunakan CSV (.csv) atau Excel/HTML (.xls, .xlsx, .html).`;
@@ -512,7 +531,7 @@
         if (strappingFile || fractionFile) {
             document.getElementById('btn-reset').style.display = 'block';
         }
-        if (strappingRaw && fractionRaw) {
+        if (strappingRaw || fractionRaw) {
             btnProcess.disabled = false; 
         }
     }
@@ -532,24 +551,44 @@
 
             setProgress(5, 'Membaca File Strapping...');
             await yieldToMain();
-            const strappingMap = parseStrapping(strappingRaw);
-
-            if (strappingMap.size === 0) throw new Error("Data Strapping kosong atau format tidak sesuai (Tinggi;Volume).");
-
+            
+            let strappingMap = new Map();
+            let strapTankNo = "";
+            
+            if (strappingRaw) {
+                const parsedStrap = parseStrapping(strappingRaw);
+                strappingMap = parsedStrap.map;
+                strapTankNo = parsedStrap.tankNo;
+                if (strappingMap.size === 0) {
+                    throw new Error("Data Strapping kosong atau format tidak sesuai (Tinggi;Volume).");
+                }
+            }
+            
             setProgress(15, 'Membaca File Fraction...');
             await yieldToMain();
-            const { rules: fractionRules, tankNo } = parseFraction(fractionRaw);
-            if (tankNo) {
-                tankName = tankNo;
-            } else {
-                const detected = extractTankName(strappingFile ? strappingFile.name : "") || extractTankName(fractionFile ? fractionFile.name : "");
-                if (detected) tankName = detected;
+            
+            let fractionRules = [];
+            let fracTankNo = "";
+            
+            if (fractionRaw) {
+                const parsedFrac = parseFraction(fractionRaw);
+                fractionRules = parsedFrac.rules;
+                fracTankNo = parsedFrac.tankNo;
+                
+                if (fractionRules.length === 0) {
+                    throw new Error("Data Fraction kosong atau format tidak sesuai (dari;sampai;tinggi;volume). Pastikan formatnya benar.");
+                }
             }
+
+            if (!strappingRaw && fractionRules.length === 0) {
+                throw new Error("Tidak ada data yang valid untuk diproses.");
+            }
+
+            let finalTankName = strapTankNo || fracTankNo || extractTankName(strappingFile ? strappingFile.name : "") || extractTankName(fractionFile ? fractionFile.name : "");
+            if (finalTankName) tankName = finalTankName;
+            
             const badge = document.getElementById('tank-name-badge');
             if (badge) badge.textContent = tankName ? tankName.toUpperCase() : 'TIDAK TERDETEKSI';
-if (fractionRules.length === 0) {
-                throw new Error("Data Fraction kosong atau format tidak sesuai (dari;sampai;tinggi;volume). Pastikan formatnya benar.");
-            }
             
             setProgress(25, 'Mempersiapkan indeks data...');
             await yieldToMain();
@@ -577,6 +616,12 @@ if (fractionRules.length === 0) {
                 if (cm < minCm) minCm = cm;
                 if (cm > maxCm) maxCm = cm;
             }
+            if (strappingMap.size === 0 && fractionRules.length > 0) {
+                fractionRules.forEach(r => {
+                    if (r.minCm < minCm) minCm = r.minCm;
+                    if (r.maxCm > maxCm) maxCm = r.maxCm;
+                });
+            }
 
             const results = [];
             const chunkSize = 40;
@@ -589,8 +634,9 @@ if (fractionRules.length === 0) {
                 const endCm = Math.min(startCm + chunkSize - 1, maxCm);
                 
                 for (let cm = startCm; cm <= endCm; cm++) {
-                    if (strappingMap.has(cm)) {
-                        const baseVolume = strappingMap.get(cm);
+                    // Only process if cm is in strapping map OR if we are processing fraction-only
+                    if (strappingMap.has(cm) || strappingMap.size === 0) {
+                        const baseVolume = strappingMap.has(cm) ? strappingMap.get(cm) : 0;
                         const cincinInfo = fractionLookup[cm];
                         const cincinNum = cincinInfo ? cincinInfo.cincinNumber : '-';
                         
@@ -604,7 +650,7 @@ if (fractionRules.length === 0) {
                             cincin: cincinNum
                         });
                         
-                        if (cm < maxCm) {
+                        if (cm < maxCm && fractionRules.length > 0) {
                             const cmFraction = cincinInfo ? cincinInfo.offsetMap : {};
                             for (let mm = 1; mm <= 9; mm++) {
                                 const addVol = cmFraction[mm] || 0;
@@ -658,13 +704,17 @@ if (fractionRules.length === 0) {
             // Fraction Preview to 100
             const fractionPreviewBody = document.getElementById('fraction-preview-body');
             let fracHtml = '';
-            for (let i = 0; i < Math.min(fractionRules.length, 100); i++) {
-                fracHtml += `<tr>
-                    <td class="td-preview">${fractionRules[i].minCm}</td>
-                    <td class="td-preview">${fractionRules[i].maxCm}</td>
-                    <td class="td-preview">${fractionRules[i].offset_mm}</td>
-                    <td class="td-preview">${fractionRules[i].volume_tambahan.toFixed(2)}</td>
-                </tr>`;
+            if (fractionRules.length === 0) {
+                fracHtml = `<tr><td colspan="4" class="td-preview" style="text-align: center; color: var(--text-muted);">Tidak ada data Fraction (Penggabungan diabaikan)</td></tr>`;
+            } else {
+                for (let i = 0; i < Math.min(fractionRules.length, 100); i++) {
+                    fracHtml += `<tr>
+                        <td class="td-preview">${fractionRules[i].minCm}</td>
+                        <td class="td-preview">${fractionRules[i].maxCm}</td>
+                        <td class="td-preview">${fractionRules[i].offset_mm}</td>
+                        <td class="td-preview">${fractionRules[i].volume_tambahan.toFixed(2)}</td>
+                    </tr>`;
+                }
             }
             fractionPreviewBody.innerHTML = fracHtml;
 
@@ -697,28 +747,61 @@ if (fractionRules.length === 0) {
         }
     });
 
-    function parseStrapping(csvText) {
-        const lines = csvText.split('\n');
+    function parseStrapping(text) {
         const map = new Map();
         let lastCm = -1;
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
-            const parts = line.split(/[;,]/);
-            if (parts.length >= 2) {
-                const rawCm = parts[0].trim();
-                const rawVol = parts[1].trim();
-                if (/^\d+(\.\d+)?$/.test(rawCm) && /^\d+(\.\d+)?$/.test(rawVol)) {
-                    const cm = parseFloat(rawCm);
-                    const vol = parseFloat(rawVol);
-                    if (cm < 10000 && cm > lastCm) {
+        let tankNo = "";
+
+        if (text.trim().toLowerCase().startsWith('<table') || text.toLowerCase().includes('<th')) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(text, 'text/html');
+            const rows = doc.querySelectorAll('tr');
+            
+            rows.forEach(row => {
+                const cols = row.querySelectorAll('td, th');
+                if (cols.length >= 2) {
+                    const rowTexts = Array.from(cols).map(c => (c.textContent || '').trim().toLowerCase());
+                    if (rowTexts.includes('tinggi')) return; 
+                    
+                    let tinggiStr = (cols[cols.length - 2].textContent || '').trim();
+                    let volStr = (cols[cols.length - 1].textContent || '').trim();
+                    
+                    const cm = parseFloat(tinggiStr.replace(/,/g, ''));
+                    const vol = parseFloat(volStr.replace(/,/g, ''));
+                    
+                    if (!isNaN(cm) && !isNaN(vol) && cm < 10000 && cm > lastCm) {
                         map.set(cm, vol);
                         lastCm = cm;
+                        
+                        if (!tankNo && cols.length >= 4) {
+                            const possibleTank = (cols[1].textContent || '').trim();
+                            if (possibleTank.match(/\d+T\d+/i)) tankNo = possibleTank;
+                        }
+                    }
+                }
+            });
+        } else {
+            const lines = text.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                const parts = line.split(/[;,]/);
+                if (parts.length >= 2) {
+                    const rawCm = parts[0].trim();
+                    const rawVol = parts[1].trim();
+                    
+                    if (/^\d+(\.\d+)?$/.test(rawCm) && /^\d+(\.\d+)?$/.test(rawVol)) {
+                        const cm = parseFloat(rawCm);
+                        const vol = parseFloat(rawVol);
+                        if (cm < 10000 && cm > lastCm) {
+                            map.set(cm, vol);
+                            lastCm = cm;
+                        }
                     }
                 }
             }
         }
-        return map;
+        return { map, tankNo };
     }
 
     function parseFraction(htmlText) {
@@ -731,13 +814,13 @@ if (fractionRules.length === 0) {
         rows.forEach(row => {
             const cols = row.querySelectorAll('td, th');
             if (cols.length >= 6) {
-                const rowTexts = Array.from(cols).map(c => c.innerText.trim().toLowerCase());
+                const rowTexts = Array.from(cols).map(c => (c.textContent || '').trim().toLowerCase());
                 if (rowTexts.includes('dari')) return;
                 
-                let dariStr = cols[2].innerText.trim();
-                let sampaiStr = cols[3].innerText.trim();
-                let tinggiStr = cols[4].innerText.trim();
-                let volStr = cols[5].innerText.trim();
+                let dariStr = (cols[2].textContent || '').trim();
+                let sampaiStr = (cols[3].textContent || '').trim();
+                let tinggiStr = (cols[4].textContent || '').trim();
+                let volStr = (cols[5].textContent || '').trim();
                 
                 const dari = parseFloat(dariStr.replace(/,/g, ''));
                 const sampai = parseFloat(sampaiStr.replace(/,/g, ''));
@@ -776,31 +859,71 @@ if (fractionRules.length === 0) {
 
         const renderLimit = 300;
         let html = '';
+        
+        const hasFraction = fractionRaw != null && fractionRaw.trim() !== '';
+        
+        document.getElementById('main-thead').innerHTML = `
+            <tr>
+                <th>Level (mm)</th>
+                <th>Level Strapping (cm)</th>
+                ${hasFraction ? '<th>Level Fraction (mm)</th>' : ''}
+                <th>Vol Strapping (L)</th>
+                ${hasFraction ? '<th>Vol Fraction (L)</th>' : ''}
+                <th>Total Volume (L)</th>
+                <th>Delta Volume (L)</th>
+                ${hasFraction ? '<th>No Cincin</th>' : ''}
+            </tr>
+        `;
+
         for (let i = 0; i < Math.min(filtered.length, renderLimit); i++) {
             html += `<tr>
                 <td style="font-family: monospace; font-weight: 500;">${formatLevel(filtered[i].level_mm)}</td>
                 <td style="font-family: monospace; font-weight: 500;">${formatLevel(filtered[i].cm)}</td>
-                <td style="font-family: monospace; font-weight: 500;">${formatLevel(filtered[i].mm)}</td>
+                ${hasFraction ? `<td style="font-family: monospace; font-weight: 500;">${formatLevel(filtered[i].mm)}</td>` : ''}
                 <td style="font-family: monospace; font-weight: 500;">${formatVolume(filtered[i].baseVolume)}</td>
-                <td style="font-family: monospace; font-weight: 500;">${formatVolume(filtered[i].addVol)}</td>
+                ${hasFraction ? `<td style="font-family: monospace; font-weight: 500;">${formatVolume(filtered[i].addVol)}</td>` : ''}
                 <td style="font-family: monospace; color: var(--success); font-weight: 600;">${formatVolume(filtered[i].totalVolume)}</td>
                 <td style="font-family: monospace; font-weight: 500;">${formatVolume(filtered[i].delta)}</td>
-                <td style="font-family: monospace; font-weight: 500; text-align: center;">
+                ${hasFraction ? `<td style="font-family: monospace; font-weight: 500; text-align: center;">
                     ${filtered[i].cincin !== '-' ? `<span style="background: rgba(148, 163, 184, 0.2); padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; color: #cbd5e1;">Cincin ${filtered[i].cincin}</span>` : '-'}
-                </td>
+                </td>` : ''}
             </tr>`;
         }
         
         if (filtered.length > renderLimit) {
-            html += `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+            html += `<tr><td colspan="${hasFraction ? 8 : 5}" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
                 Menampilkan ${renderLimit} dari total ${filtered.length} baris.<br>
                 <em>Gunakan kotak pencarian di atas untuk mencari angka spesifik.</em>
             </td></tr>`;
         } else if (filtered.length === 0) {
-            html += `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Data tidak ditemukan.</td></tr>`;
+            html += `<tr><td colspan="${hasFraction ? 8 : 5}" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Data tidak ditemukan.</td></tr>`;
         }
         
         tbody.innerHTML = html;
+        
+        // Render Anomaly Table
+        const anomalyBody = document.getElementById('anomaly-table-body');
+        const anomalyPanel = document.getElementById('anomaly-panel');
+        if (window.anomalyDataGlobal && window.anomalyDataGlobal.length > 0) {
+            anomalyPanel.style.display = 'block';
+            let anomalyHtml = '';
+            window.anomalyDataGlobal.forEach((d, i) => {
+                const match = data.find(c => c.level_mm === d.level_mm);
+                const totalVol = match ? match.totalVolume : 0;
+                
+                anomalyHtml += `<tr style="background: rgba(239, 68, 68, 0.05);">
+                    <td>${i + 1}</td>
+                    <td>${formatLevel(d.level_mm)}</td>
+                    <td>${formatVolume(totalVol)}</td>
+                    <td style="color: #ef4444; font-weight: 600;">${formatVolume(d.delta_vol)}</td>
+                    <td style="color: #10b981; font-weight: 600;">${formatVolume(d.localAvg || 0)}</td>
+                    <td style="color: #ef4444;">${(d.devRatio * 100).toFixed(1)}% (+${Math.abs(d.delta_vol - d.localAvg).toFixed(1)} L)</td>
+                </tr>`;
+            });
+            anomalyBody.innerHTML = anomalyHtml;
+        } else {
+            anomalyPanel.style.display = 'none';
+        }
     }
 
     document.getElementById('search-box').addEventListener('input', (e) => {
@@ -855,17 +978,51 @@ if (fractionRules.length === 0) {
         deltaData.forEach(d => { sumDelta += d.delta_vol; });
         const avgDelta = sumDelta / deltaData.length;
 
-        // Detect anomalies (>2% deviation from average)
-        deltaData.forEach(d => { d.isAnomaly = Math.abs(d.delta_vol - avgDelta) / (avgDelta || 1) > 0.05; });
-
-        const maxDelta = Math.max(...deltaData.map(d => d.delta_vol));
-        const minDelta = Math.min(...deltaData.map(d => d.delta_vol));
+        // Detect anomalies using local moving average (window of 5 points)
+        // This handles spherical tanks gracefully instead of comparing to global average
+        const windowSize = 5;
+        deltaData.forEach((d, i) => {
+            let sumLocal = 0;
+            let countLocal = 0;
+            for (let j = Math.max(0, i - windowSize); j <= Math.min(deltaData.length - 1, i + windowSize); j++) {
+                if (i !== j) {
+                    sumLocal += deltaData[j].delta_vol;
+                    countLocal++;
+                }
+            }
+            const localAvg = countLocal > 0 ? sumLocal / countLocal : d.delta_vol;
+            const devRatio = Math.abs(d.delta_vol - localAvg) / (localAvg || 1);
+            const devAbs = Math.abs(d.delta_vol - localAvg);
+            d.isAnomaly = devRatio > 0.15 && devAbs > 50;
+            d.localAvg = localAvg;
+            d.devRatio = devRatio;
+        });
+        
+        // Export anomaly data for table rendering
+        window.anomalyDataGlobal = deltaData.filter(d => d.isAnomaly);
+        
+        const normalData = deltaData.filter(d => !d.isAnomaly);
+        
+        let maxDeltaDraw = normalData.length > 0 ? Math.max(...normalData.map(d => d.delta_vol)) : Math.max(...deltaData.map(d => d.delta_vol));
+        
+        // Tambahkan margin 10% agar dinding tidak menyentuh ujung kanvas pada mode normal
+        maxDeltaDraw = maxDeltaDraw + (maxDeltaDraw * 0.1);
+        
         let minDeltaDraw = 0;
-        let maxDeltaDraw = maxDelta;
 
         if (currentChartMode === 'zoom') {
-            const range = maxDelta - minDelta;
-            minDeltaDraw = Math.max(0, minDelta - range * 0.1); 
+            if (normalData.length > 0) {
+                const normalMax = Math.max(...normalData.map(d => d.delta_vol));
+                const normalMin = Math.min(...normalData.map(d => d.delta_vol));
+                const range = normalMax - normalMin;
+                minDeltaDraw = Math.max(0, normalMin - range * 0.1);
+                maxDeltaDraw = normalMax + range * 0.1;
+            } else {
+                const maxDelta = Math.max(...deltaData.map(d => d.delta_vol));
+                const minDelta = Math.min(...deltaData.map(d => d.delta_vol));
+                const range = maxDelta - minDelta;
+                minDeltaDraw = Math.max(0, minDelta - range * 0.1); 
+            }
         }
 
         const deltaRange = maxDeltaDraw - minDeltaDraw || 1;
@@ -875,8 +1032,8 @@ if (fractionRules.length === 0) {
         const paddingY = 45;
         const paddingX = 60;
 
-        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-        ctx.fillStyle = '#94a3b8';
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.fillStyle = '#64748b';
         ctx.font = '10px Inter';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
@@ -892,7 +1049,7 @@ if (fractionRules.length === 0) {
         const halfW = (width - paddingX * 2) / 2;
         const getXOffset = (delta) => {
             if (delta < minDeltaDraw) return 0;
-            return ((delta - minDeltaDraw) / deltaRange) * halfW;
+            return Math.min(((delta - minDeltaDraw) / deltaRange) * halfW, halfW);
         };
 
         // Grid lines X (Delta Volume)
@@ -938,7 +1095,7 @@ if (fractionRules.length === 0) {
 
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillStyle = '#f8fafc';
+        ctx.fillStyle = '#334155';
         ctx.font = 'bold 12px Inter';
         ctx.fillText("Bentuk Dinding Tangki (Δ Volume per mm)", width/2, 10);
 
@@ -981,7 +1138,7 @@ if (fractionRules.length === 0) {
 
         // Center dashed line
         ctx.beginPath();
-        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.strokeStyle = '#e2e8f0';
         ctx.setLineDash([5, 5]);
         ctx.moveTo(width / 2, height - paddingY);
         ctx.lineTo(width / 2, paddingY);
@@ -1023,27 +1180,50 @@ if (fractionRules.length === 0) {
         const ratio = (height - paddingY - y) / (height - paddingY * 2);
         const hoverLevel = minLevel + ratio * (maxLevel - minLevel);
         
-        let left = 1;
+        // Interpolate visual delta_vol and level
+        let lower = deltaData[0];
+        let upper = deltaData[deltaData.length - 1];
+        
+        for (let i = 0; i < deltaData.length - 1; i++) {
+            if (hoverLevel >= deltaData[i].level_mm && hoverLevel <= deltaData[i+1].level_mm) {
+                lower = deltaData[i];
+                upper = deltaData[i+1];
+                break;
+            }
+        }
+        
+        let exactDelta = lower.delta_vol;
+        if (upper.level_mm !== lower.level_mm) {
+            const t = (hoverLevel - lower.level_mm) / (upper.level_mm - lower.level_mm);
+            exactDelta = lower.delta_vol + t * (upper.delta_vol - lower.delta_vol);
+        }
+        
+        // Find corresponding volume from combinedData using binary search for closest level
+        let bestVol = 0;
+        let left = 0;
         let right = combinedData.length - 1;
-        let bestIdx = 1;
+        let closestDist = Infinity;
         
         while (left <= right) {
             const mid = Math.floor((left + right) / 2);
-            if (combinedData[mid].level_mm === Math.round(hoverLevel)) {
-                bestIdx = mid; break;
+            const dist = Math.abs(combinedData[mid].level_mm - hoverLevel);
+            if (dist < closestDist) {
+                closestDist = dist;
+                bestVol = combinedData[mid].totalVolume;
+            }
+            if (combinedData[mid].level_mm === hoverLevel) {
+                break;
             } else if (combinedData[mid].level_mm < hoverLevel) {
-                bestIdx = mid; left = mid + 1;
+                left = mid + 1;
             } else {
                 right = mid - 1;
             }
         }
         
-        const delta = combinedData[bestIdx].totalVolume - combinedData[bestIdx - 1].totalVolume;
-        
         tooltip.innerHTML = `
-            <div style="color: #94a3b8; margin-bottom: 4px;">Level: <strong style="color: white;">${combinedData[bestIdx].level_mm} mm</strong></div>
-            <div style="color: #94a3b8; margin-bottom: 4px;">Δ Volume: <strong style="color: #ef4444;">${formatVolume(delta.toFixed(2))} KL/mm</strong></div>
-            <div style="color: #94a3b8;">Total Vol: <strong style="color: #10b981;">${formatVolume(combinedData[bestIdx].totalVolume)}</strong></div>
+            <div style="color: #64748b; margin-bottom: 4px;">Level: <strong style="color: #0f172a;">${Math.round(hoverLevel).toLocaleString('id-ID')} mm</strong></div>
+            <div style="color: #64748b; margin-bottom: 4px;">Δ Volume: <strong style="color: #ef4444;">${formatVolume(exactDelta.toFixed(2))} KL/mm</strong></div>
+            <div style="color: #64748b;">Total Vol: <strong style="color: #10b981;">${formatVolume(bestVol)}</strong></div>
         `;
         
         tooltip.style.display = 'block';
